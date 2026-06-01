@@ -1,12 +1,11 @@
 {
-  "name": "trecker — Личный трекер активностей",
-  "short_name": "trecker",
-  "description": "Персональный трекер ежедневных активностей и привычек с серией дней и инфографикой",
+  "name": "Habit Tracker",
+  "short_name": "Habit Tracker",
+  "description": "Трекер ежедневных привычек: серии дней, прогресс и инфографика. Светлая и тёмная темы.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#070913",
-  "theme_color": "#070913",
+  "background_color": "#f5f5f7",
+  "theme_color": "#f5f5f7",
   "icons": [
     {
       "src": "/icon.svg",

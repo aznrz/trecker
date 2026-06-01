@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html class="light" lang="ru">
+<html lang="ru">
 <head>
   <meta charset="utf-8"/>
+  <script>
+    // Анти-FOUC: применяем сохранённую тему до первой отрисовки. База — светлая.
+    try { if (localStorage.getItem('antigravity-theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) {}
+  </script>
   <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
-  <meta name="theme-color" content="#f5f5f7" />
-  <title>Antigravity — Elevate Your Routine</title>
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+  <title>Habit Tracker</title>
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icon.svg" />
@@ -15,45 +20,33 @@
   <link rel="stylesheet" href="/style.css" />
 
   <script id="tailwind-config">
+    // Цвета — через CSS-переменные (RGB-триплеты), чтобы темы переключались мгновенно
+    // и при этом работали утилиты прозрачности (bg-primary/10, text-on-surface/40 и т.д.).
+    const tok = (v) => `rgb(var(--${v}) / <alpha-value>)`;
     tailwind.config = {
       darkMode: "class",
       theme: {
         extend: {
           colors: {
-            "surface-tint": "#005cbb",
-            "on-error": "#ffffff",
-            "secondary": "#006e1c",
-            "surface-container-low": "#f6f3f5",
-            "on-surface-variant": "#414753",
-            "surface": "#fcf8fb",
-            "tertiary-container": "#a842db",
-            "primary": "#0059b5",
-            "surface-container-high": "#eae7ea",
-            "surface-variant": "#e4e2e4",
-            "on-surface": "#1b1b1d",
-            "on-primary": "#ffffff",
-            "inverse-primary": "#abc7ff",
-            "inverse-on-surface": "#f3f0f2",
-            "surface-dim": "#dcd9dc",
-            "on-secondary": "#ffffff",
-            "surface-container-highest": "#e4e2e4",
-            "primary-fixed": "#d7e2ff",
-            "on-error-container": "#93000a",
-            "outline-variant": "#c1c6d6",
-            "on-background": "#1b1b1d",
-            "primary-fixed-dim": "#abc7ff",
-            "secondary-container": "#60fe6c",
-            "surface-container": "#f0edef",
-            "surface-container-lowest": "#ffffff",
-            "error": "#ba1a1a",
-            "error-container": "#ffdad6",
-            "on-secondary-container": "#00731d",
-            "background": "#fcf8fb",
-            "outline": "#717785",
-            "primary-container": "#0071e3",
-            "surface-bright": "#fcf8fb",
-            "inverse-surface": "#303032",
-            "tertiary": "#8c21c0"
+            "primary": tok('primary'),
+            "on-primary": tok('on-primary'),
+            "primary-container": tok('primary-container'),
+            "secondary": tok('secondary'),
+            "secondary-container": tok('secondary-container'),
+            "tertiary": tok('tertiary'),
+            "error": tok('error'),
+            "error-container": tok('error-container'),
+            "background": tok('background'),
+            "surface": tok('surface'),
+            "surface-container-lowest": tok('surface-container-lowest'),
+            "surface-container-low": tok('surface-container-low'),
+            "surface-container": tok('surface-container'),
+            "surface-container-high": tok('surface-container-high'),
+            "surface-container-highest": tok('surface-container-highest'),
+            "on-surface": tok('on-surface'),
+            "on-surface-variant": tok('on-surface-variant'),
+            "outline": tok('outline'),
+            "outline-variant": tok('outline-variant')
           },
           borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
           spacing: { "xs": "4px", "sm": "12px", "base": "8px", "md": "24px", "gutter": "24px", "margin": "32px", "lg": "48px", "xl": "80px" },
@@ -82,10 +75,10 @@
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-5">
-          <span class="material-symbols-outlined text-4xl text-primary">fitness_center</span>
+          <span class="material-symbols-outlined text-4xl text-primary">check_circle</span>
         </div>
-        <h1 class="text-headline-xl font-headline-xl text-on-surface">Antigravity</h1>
-        <p class="text-body-lg font-body-lg text-on-surface-variant mt-1">Откажись от гравитации. Совершенствуй рутину.</p>
+        <h1 class="text-headline-xl font-headline-xl text-on-surface">Habit Tracker</h1>
+        <p class="text-body-lg font-body-lg text-on-surface-variant mt-1">Отслеживай привычки. Совершенствуй рутину.</p>
       </div>
 
       <div class="flex bg-surface-container rounded-xl p-1 mb-6 border border-outline-variant/40" id="authTabs">
@@ -109,30 +102,16 @@
   </div>
 
   <!-- ====================== ЭКРАН ПРИЛОЖЕНИЯ ====================== -->
-  <div id="app" class="screen min-h-screen hidden">
+  <div id="app" class="screen hidden">
 
-    <!-- Мобильный топбар -->
-    <header class="lg:hidden fixed top-0 inset-x-0 h-16 z-40 glass-panel border-b border-outline-variant/30 flex items-center justify-between px-4">
-      <button id="sidebarToggle" type="button" class="w-10 h-10 rounded-xl flex items-center justify-center text-on-surface hover:bg-surface-container-high/60 active:scale-95 transition">
-        <span class="material-symbols-outlined">menu</span>
-      </button>
-      <span class="text-headline-md font-headline-md text-on-surface">Antigravity</span>
-      <button id="logoutBtnMobile" type="button" class="w-10 h-10 rounded-xl flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high/60 active:scale-95 transition">
-        <span class="material-symbols-outlined">logout</span>
-      </button>
-    </header>
-
-    <!-- Затемнение под мобильный сайдбар -->
-    <div id="sidebarBackdrop" class="lg:hidden fixed inset-0 bg-on-surface/30 backdrop-blur-sm z-40 hidden"></div>
-
-    <!-- Сайдбар -->
-    <aside id="sidebar" class="fixed left-0 top-0 h-screen w-72 bg-surface/80 backdrop-blur-3xl border-r border-outline-variant/30 flex flex-col gap-3 p-6 z-50 -translate-x-full lg:translate-x-0 transition-transform duration-300">
-      <div class="mb-8 px-2">
-        <h1 class="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">Antigravity</h1>
-        <p class="text-label-md font-label-md text-on-surface-variant">Habit Tracker</p>
+    <!-- Сайдбар (десктоп ≥768px) -->
+    <aside class="sidebar fixed left-0 top-0 h-screen w-60 bg-surface/80 backdrop-blur-3xl border-r border-outline-variant/30 flex-col gap-3 p-5 z-50">
+      <div class="mb-6 px-1">
+        <h1 class="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">Habit Tracker</h1>
+        <p class="text-label-sm font-label-sm text-on-surface-variant">Трекер привычек</p>
       </div>
 
-      <nav class="flex-1 flex flex-col gap-1" id="sideNav">
+      <nav class="flex-1 flex flex-col gap-1">
         <button class="nav-link" data-tab="today" type="button">
           <span class="material-symbols-outlined">calendar_today</span>
           <span class="text-label-md font-label-md">Today</span>
@@ -152,30 +131,53 @@
           <span class="material-symbols-outlined text-[20px]">add</span>
           <span class="text-label-md font-label-md">Add New Habit</span>
         </button>
-        <div class="p-4 glass-panel rounded-2xl flex items-center justify-between gap-3 shadow-sm">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <span class="material-symbols-outlined">person</span>
+        <div class="p-3 glass-panel rounded-2xl flex items-center justify-between gap-2 shadow-sm">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <span class="material-symbols-outlined text-[20px]">person</span>
             </div>
             <div class="min-w-0">
               <p class="text-label-md font-label-md font-bold truncate" id="userName">Hero</p>
               <p class="text-label-sm font-label-sm text-outline truncate" id="userEmail"></p>
             </div>
           </div>
-          <button id="logoutBtn" type="button" class="w-9 h-9 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high/60 active:scale-95 transition shrink-0" title="Выйти">
-            <span class="material-symbols-outlined text-[20px]">logout</span>
-          </button>
+          <div class="flex items-center gap-1 shrink-0">
+            <button id="themeToggleSide" type="button" class="icon-btn" title="Сменить тему">
+              <span class="material-symbols-outlined text-[20px]">dark_mode</span>
+            </button>
+            <button id="logoutBtn" type="button" class="icon-btn" title="Выйти">
+              <span class="material-symbols-outlined text-[20px]">logout</span>
+            </button>
+          </div>
         </div>
       </div>
     </aside>
 
     <!-- Контент -->
-    <main class="lg:ml-72 min-h-screen p-5 sm:p-margin max-w-[1440px] pt-20 lg:pt-margin" id="view"></main>
+    <main class="app-main">
+      <div id="view" class="content"></div>
+    </main>
 
     <!-- FAB: быстрая запись -->
-    <button id="fabBtn" type="button" class="fixed bottom-6 right-6 w-14 h-14 bg-primary text-on-primary rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all z-30" title="Быстрая запись">
+    <button id="fabBtn" type="button" class="fab w-14 h-14 bg-primary text-on-primary rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all" title="Быстрая запись">
       <span class="material-symbols-outlined text-3xl">bolt</span>
     </button>
+
+    <!-- Нижний таб-бар (смартфоны ≤767px) -->
+    <nav class="bottom-bar">
+      <button class="bottom-tab" data-tab="today" type="button">
+        <span class="material-symbols-outlined">calendar_today</span>
+        <span>Today</span>
+      </button>
+      <button class="bottom-tab" data-tab="stats" type="button">
+        <span class="material-symbols-outlined">bar_chart</span>
+        <span>Stats</span>
+      </button>
+      <button class="bottom-tab" data-tab="activities" type="button">
+        <span class="material-symbols-outlined">fitness_center</span>
+        <span>Activities</span>
+      </button>
+    </nav>
   </div>
 
   <!-- ====================== МОДАЛКА ПРИВЫЧКИ ====================== -->

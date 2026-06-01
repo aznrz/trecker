@@ -1,5 +1,5 @@
 /**
- * Antigravity — трекер привычек (светлая десктопная тема, SPA)
+ * Habit Tracker — трекер привычек (SPA, light/dark темы через CSS-переменные)
  * Архитектура: State → API → Render. Бэкенд и эндпоинты без изменений.
  */
 
@@ -101,7 +101,7 @@ function showToast(message, type = 'success') {
   const icon = document.createElement('span');
   icon.className = 'material-symbols-outlined text-xl';
   icon.textContent = type === 'success' ? 'check_circle' : 'warning';
-  icon.style.color = type === 'error' ? '#ba1a1a' : '#006e1c';
+  icon.style.color = type === 'error' ? 'rgb(var(--error))' : 'rgb(var(--secondary))';
   toast.appendChild(icon);
   toast.appendChild(document.createTextNode(' ' + message));
   toast.classList.remove('hidden');
@@ -116,8 +116,6 @@ const appScreen = document.getElementById('app');
 const viewContainer = document.getElementById('view');
 const userEmailSpan = document.getElementById('userEmail');
 const userNameSpan = document.getElementById('userName');
-const sidebar = document.getElementById('sidebar');
-const sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
 let authMode = 'login';
 
@@ -181,15 +179,11 @@ function renderAuth() {
 }
 
 function updateNavUI() {
-  document.querySelectorAll('#sideNav .nav-link').forEach((btn) => {
+  // Сайдбар (.nav-link) и нижний таб-бар (.bottom-tab) — оба помечаются [data-tab]
+  document.querySelectorAll('[data-tab]').forEach((btn) => {
     const active = btn.getAttribute('data-tab') === state.activeTab && !state.selectedActivityId;
     btn.classList.toggle('active', active);
   });
-}
-
-function closeSidebar() {
-  sidebar.classList.add('-translate-x-full');
-  sidebarBackdrop.classList.add('hidden');
 }
 
 async function renderCurrentTab() {
@@ -241,7 +235,7 @@ async function renderDashboardTab() {
   viewContainer.appendChild(pageHeader('Hi, Hero!', 'Ready to ascend today?', scoreCard('Daily Score', `${overallPercent}%`)));
 
   if (activities.length === 0) {
-    viewContainer.appendChild(emptyState('Привычек пока нет', 'Добавьте первую цель кнопкой «Add New Habit» в меню слева.'));
+    viewContainer.appendChild(emptyState('Привычек пока нет', 'Добавьте первую цель на вкладке Activities.'));
     return;
   }
 
@@ -285,7 +279,7 @@ function habitCard(act, todayDate) {
 
   const head = document.createElement('div');
   head.className = 'flex justify-between items-start';
-  const streakColor = act.streak === 0 ? '#717785' : (done ? '#006e1c' : color);
+  const streakColor = act.streak === 0 ? 'rgb(var(--outline))' : (done ? 'rgb(var(--secondary))' : color);
   head.innerHTML = `
     <div class="flex flex-col gap-1 min-w-0">
       <span class="text-headline-md font-headline-md truncate">${getEmoji(act.name)} ${esc(act.name)}</span>
@@ -303,8 +297,8 @@ function habitCard(act, todayDate) {
   const fill = document.createElement('div');
   fill.className = 'absolute top-0 left-0 h-full rounded-full transition-all duration-700 ease-out';
   fill.style.width = '0%';
-  fill.style.background = done ? '#60fe6c' : color;
-  fill.style.boxShadow = `0 0 12px ${done ? 'rgba(96,254,108,0.5)' : color + '66'}`;
+  fill.style.background = done ? 'rgb(var(--secondary-container))' : color;
+  fill.style.boxShadow = `0 0 12px ${done ? 'rgb(var(--secondary-container) / 0.5)' : color + '66'}`;
   track.appendChild(fill);
   card.appendChild(track);
   requestAnimationFrame(() => { fill.style.width = `${percent}%`; });
@@ -431,8 +425,8 @@ async function renderActivityDetail(activityId) {
     const bf = document.createElement('div');
     bf.className = 'absolute bottom-0 left-0 w-full rounded-t-xl transition-all duration-700 ease-out';
     bf.style.height = `${h}%`;
-    bf.style.background = done ? '#60fe6c' : color;
-    bf.style.boxShadow = done ? '0 0 10px rgba(96,254,108,0.45)' : `0 0 10px ${color}55`;
+    bf.style.background = done ? 'rgb(var(--secondary-container))' : color;
+    bf.style.boxShadow = done ? '0 0 10px rgb(var(--secondary-container) / 0.45)' : `0 0 10px ${color}55`;
     tr.appendChild(bf);
     const lab = document.createElement('span');
     lab.className = `text-label-sm font-label-sm ${isToday ? 'font-bold text-primary' : 'text-on-surface-variant/60'}`;
@@ -521,6 +515,9 @@ async function renderActivitiesTab() {
   addBtnNode.addEventListener('click', () => openActivityModal(null));
   viewContainer.appendChild(pageHeader('Привычки', 'Управляй своими целями', addBtnNode));
 
+  // Переключатель темы (доступен и на мобильном)
+  viewContainer.appendChild(themeToggleRow());
+
   let res;
   try {
     res = await api.getActivities();
@@ -601,7 +598,7 @@ async function renderStatsTab() {
     const series = act.series || [];
     const sum = series.reduce((a, c) => a + c.total, 0);
     const card = document.createElement('div');
-    card.className = 'col-span-12 lg:col-span-6 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
+    card.className = 'col-span-12 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
     card.innerHTML = `
       <div class="flex justify-between items-center mb-md border-b border-outline-variant/30 pb-3">
         <div class="min-w-0">
@@ -632,7 +629,8 @@ async function renderStatsTab() {
       rect.setAttribute('width', bw.toString());
       rect.setAttribute('height', bh.toString());
       rect.setAttribute('rx', '4');
-      rect.setAttribute('fill', done ? '#60fe6c' : (d.total > 0 ? color : '#e4e2e4'));
+      // var() в SVG работает только через style, не через presentation-атрибут fill
+      rect.style.fill = done ? 'rgb(var(--secondary-container))' : (d.total > 0 ? color : 'rgb(var(--surface-container-high))');
       const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
       t.textContent = `${d.day}: ${Number(d.total.toFixed(1))} / ${act.daily_goal} ${act.unit || ''}`;
       rect.appendChild(t);
@@ -700,7 +698,6 @@ function openActivityModal(activity = null) {
   }
   initColorPicker();
   activityModal.classList.remove('hidden');
-  closeSidebar();
 }
 
 function closeActivityModal() { activityModal.classList.add('hidden'); }
@@ -723,6 +720,59 @@ function openLogModal() {
 }
 
 function closeLogModal() { logModal.classList.add('hidden'); }
+
+// ==========================================
+// 10.5 ТЕМА (Light / Dark)
+// ==========================================
+const THEME_KEY = 'antigravity-theme';
+
+function currentTheme() {
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  const dark = theme === 'dark';
+  document.documentElement.classList.toggle('dark', dark);
+  try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch (e) {}
+  syncThemeUI();
+}
+
+function toggleTheme() {
+  applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+}
+
+// Приводит все переключатели/иконки к текущему состоянию темы
+function syncThemeUI() {
+  const dark = currentTheme() === 'dark';
+  const sideIcon = document.querySelector('#themeToggleSide .material-symbols-outlined');
+  if (sideIcon) sideIcon.textContent = dark ? 'light_mode' : 'dark_mode';
+  document.querySelectorAll('.theme-switch .knob .material-symbols-outlined').forEach((el) => {
+    el.textContent = dark ? 'dark_mode' : 'light_mode';
+  });
+}
+
+// Строка-переключатель темы для вкладки Activities
+function themeToggleRow() {
+  const row = document.createElement('div');
+  row.className = 'glass-panel rounded-2xl p-4 flex items-center justify-between shadow-sm mb-md';
+  const label = document.createElement('div');
+  label.innerHTML = `
+    <p class="text-label-md font-label-md font-bold">Тёмная тема</p>
+    <p class="text-label-sm font-label-sm text-on-surface-variant">Светлое / тёмное оформление</p>
+  `;
+  const sw = document.createElement('button');
+  sw.type = 'button';
+  sw.className = 'theme-switch';
+  sw.setAttribute('aria-label', 'Сменить тему');
+  const knob = document.createElement('span');
+  knob.className = 'knob';
+  knob.innerHTML = `<span class="material-symbols-outlined">${currentTheme() === 'dark' ? 'dark_mode' : 'light_mode'}</span>`;
+  sw.appendChild(knob);
+  sw.addEventListener('click', toggleTheme);
+  row.appendChild(label);
+  row.appendChild(sw);
+  return row;
+}
 
 // ==========================================
 // 11. ИНИЦИАЛИЗАЦИЯ И СОБЫТИЯ
@@ -776,25 +826,19 @@ document.getElementById('authTabs').addEventListener('click', (e) => {
   renderAuth();
 });
 
-// Навигация
-document.querySelectorAll('#sideNav .nav-link').forEach((btn) => {
+// Навигация (сайдбар + нижний таб-бар — все элементы с data-tab)
+document.querySelectorAll('[data-tab]').forEach((btn) => {
   btn.addEventListener('click', async () => {
     const tab = btn.getAttribute('data-tab');
     if (!tab) return;
     state.activeTab = tab;
     state.selectedActivityId = null;
-    closeSidebar();
     await renderCurrentTab();
   });
 });
 
-// Сайдбар (мобильный)
-document.getElementById('sidebarToggle').addEventListener('click', () => {
-  const hidden = sidebar.classList.contains('-translate-x-full');
-  sidebar.classList.toggle('-translate-x-full', !hidden);
-  sidebarBackdrop.classList.toggle('hidden', !hidden);
-});
-sidebarBackdrop.addEventListener('click', closeSidebar);
+// Переключатель темы в сайдбаре
+document.getElementById('themeToggleSide').addEventListener('click', toggleTheme);
 
 // Add New Habit
 document.getElementById('addHabitBtn').addEventListener('click', () => openActivityModal(null));
@@ -817,7 +861,6 @@ async function doLogout() {
   }
 }
 document.getElementById('logoutBtn').addEventListener('click', doLogout);
-document.getElementById('logoutBtnMobile').addEventListener('click', doLogout);
 
 // Модалки — закрытие
 document.getElementById('closeModalBtn').addEventListener('click', closeActivityModal);
@@ -880,4 +923,7 @@ deleteActivityBtn.addEventListener('click', async () => {
   }
 });
 
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', () => {
+  syncThemeUI();
+  initApp();
+});
