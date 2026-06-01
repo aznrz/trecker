@@ -24,8 +24,26 @@ async function handleApi(request, env, url) {
   const path = url.pathname.replace(/^\/api/, "");
   const method = request.method;
 
-  if (path === "/register" && method === "POST") return register(request, env);
-  if (path === "/login" && method === "POST") return login(request, env);
+  // публичная конфигурация для фронтенда (включены ли Google / Turnstile)
+  if (path === "/config" && method === "GET") {
+    return json({
+      turnstileSiteKey: env.TURNSTILE_SITEKEY || null,
+      googleEnabled: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+    });
+  }
+
+  // Google OAuth (полностраничные GET-редиректы)
+  if (path === "/auth/google" && method === "GET") return googleStart(env, url);
+  if (path === "/auth/google/callback" && method === "GET") return googleCallback(request, env, url);
+
+  if (path === "/register" && method === "POST") {
+    if (!(await rateOk(env, "auth", request, 8, 60))) return json({ error: "Слишком много попыток, попробуйте через минуту" }, 429);
+    return register(request, env);
+  }
+  if (path === "/login" && method === "POST") {
+    if (!(await rateOk(env, "auth", request, 8, 60))) return json({ error: "Слишком много попыток, попробуйте через минуту" }, 429);
+    return login(request, env);
+  }
   if (path === "/logout" && method === "POST") return logout(request);
 
   // дальше — только для авторизованных
@@ -46,7 +64,10 @@ async function handleApi(request, env, url) {
     if (method === "DELETE") return deleteActivity(env, uid, id);
   }
 
-  if (path === "/logs" && method === "POST") return createLog(request, env, uid);
+  if (path === "/logs" && method === "POST") {
+    if (!(await rateOk(env, "api", request, 120, 60))) return json({ error: "Слишком часто, подождите немного" }, 429);
+    return createLog(request, env, uid);
+  }
   const logMatch = path.match(/^\/logs\/(\d+)$/);
   if (logMatch && method === "DELETE") return deleteLog(env, uid, +logMatch[1]);
 
@@ -61,6 +82,7 @@ async function register(request, env) {
   const b = await request.json().catch(() => ({}));
   const email = (b.email || "").toLowerCase().trim();
   const password = b.password || "";
+  if (!(await verifyTurnstile(env, request, b.turnstile))) return json({ error: "Проверка безопасности не пройдена, обновите страницу" }, 400);
   if (!validEmail(email)) return json({ error: "Некорректный email" }, 400);
   if (password.length < 6) return json({ error: "Пароль минимум 6 символов" }, 400);
 
@@ -81,6 +103,7 @@ async function register(request, env) {
 async function login(request, env) {
   const b = await request.json().catch(() => ({}));
   const email = (b.email || "").toLowerCase().trim();
+  if (!(await verifyTurnstile(env, request, b.turnstile))) return json({ error: "Проверка безопасности не пройдена, обновите страницу" }, 400);
   const u = await env.DB.prepare("SELECT * FROM users WHERE email=?").bind(email).first();
   if (!u || !(await verifyPassword(b.password || "", u.pass_hash))) {
     return json({ error: "Неверный email или пароль" }, 401);
@@ -94,6 +117,134 @@ function logout(request) {
   return json({ ok: true }, 200, {
     "Set-Cookie": `sid=; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=0`,
   });
+}
+
+// ---------- защита: rate limit + Turnstile ----------
+
+// Лимитер запросов на D1 (надёжно на любом плане): окно фиксированной длины по IP.
+async function rateOk(env, name, request, limit, periodSec) {
+  const ip = request.headers.get("CF-Connecting-IP") || "anon";
+  const now = Math.floor(Date.now() / 1000);
+  const win = now - (now % periodSec);
+  const key = `${name}:${ip}`;
+  try {
+    // Атомарно: инкремент + возврат нового значения одним запросом (без stale-чтения с реплики)
+    const row = await env.DB.prepare(
+      `INSERT INTO rate_limits (k, cnt, win) VALUES (?1, 1, ?2)
+       ON CONFLICT(k) DO UPDATE SET
+         cnt = CASE WHEN win = ?2 THEN cnt + 1 ELSE 1 END,
+         win = ?2
+       RETURNING cnt`
+    ).bind(key, win).first();
+    return !row || row.cnt <= limit;
+  } catch {
+    return true; // не блокируем пользователей при сбое лимитера
+  }
+}
+
+// Проверка токена Cloudflare Turnstile. Если секрет не задан — фича выключена.
+async function verifyTurnstile(env, request, token) {
+  if (!env.TURNSTILE_SECRET) return true;
+  if (!token) return false;
+  const form = new URLSearchParams();
+  form.append("secret", env.TURNSTILE_SECRET);
+  form.append("response", token);
+  const ip = request.headers.get("CF-Connecting-IP");
+  if (ip) form.append("remoteip", ip);
+  try {
+    const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: form });
+    const data = await r.json().catch(() => ({}));
+    return !!data.success;
+  } catch {
+    return false;
+  }
+}
+
+// ---------- Google OAuth ----------
+
+function googleRedirectUri(url) {
+  return `${url.origin}/api/auth/google/callback`;
+}
+
+function googleStart(env, url) {
+  if (!env.GOOGLE_CLIENT_ID) return json({ error: "Google-вход не настроен" }, 503);
+  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const params = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: googleRedirectUri(url),
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    prompt: "select_account",
+  });
+  const secureFlag = isLocalHost(url.hostname) ? "" : "; Secure";
+  const headers = new Headers({ Location: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
+  headers.append("Set-Cookie", `gstate=${state}; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=600`);
+  return new Response(null, { status: 302, headers });
+}
+
+async function googleCallback(request, env, url) {
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const cookieState = getCookie(request, "gstate");
+  if (!code || !state || !cookieState || !timingSafeEqual(state, cookieState)) {
+    return redirectHome(url, "google");
+  }
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        code,
+        redirect_uri: googleRedirectUri(url),
+        grant_type: "authorization_code",
+      }),
+    });
+    const tok = await tokenRes.json().catch(() => ({}));
+    if (!tok.access_token) return redirectHome(url, "google");
+    const uiRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+      headers: { Authorization: `Bearer ${tok.access_token}` },
+    });
+    const profile = await uiRes.json().catch(() => ({}));
+    const email = (profile.email || "").toLowerCase().trim();
+    if (!email || profile.email_verified === false) return redirectHome(url, "google");
+
+    const uid = await upsertGoogleUser(env, email, profile.sub);
+    const sid = await createSession(uid, secret(env));
+    const secureFlag = isLocalHost(url.hostname) ? "" : "; Secure";
+    const headers = new Headers({ Location: "/" });
+    headers.append("Set-Cookie", `sid=${sid}; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=${30 * 86400}`);
+    headers.append("Set-Cookie", `gstate=; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=0`);
+    return new Response(null, { status: 302, headers });
+  } catch {
+    return redirectHome(url, "google");
+  }
+}
+
+async function upsertGoogleUser(env, email, googleId) {
+  const now = new Date().toISOString();
+  const u = await env.DB.prepare("SELECT id FROM users WHERE google_id=? OR email=?").bind(googleId, email).first();
+  if (u) {
+    await env.DB.prepare("UPDATE users SET google_id=? WHERE id=? AND (google_id IS NULL OR google_id='')").bind(googleId, u.id).run();
+    return u.id;
+  }
+  // Google-аккаунты без пароля: ставим нерабочий sentinel (verifyPassword вернёт false)
+  const res = await env.DB.prepare(
+    "INSERT INTO users (email, pass_hash, google_id, created_at) VALUES (?,?,?,?)"
+  ).bind(email, "google-oauth", googleId, now).run();
+  const uid = res.meta.last_row_id;
+  await seedDefaultActivities(env, uid);
+  return uid;
+}
+
+function redirectHome(url, errCode) {
+  return new Response(null, { status: 302, headers: { Location: `/?auth_error=${errCode}` } });
+}
+
+function isLocalHost(hostname) {
+  return /^(localhost|127\.0\.0\.1)$/.test(hostname || "");
 }
 
 async function seedDefaultActivities(env, uid) {

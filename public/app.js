@@ -75,8 +75,9 @@ async function fetchJson(url, options = {}) {
 
 const api = {
   getMe: () => fetchJson('/api/me'),
-  login: (email, password) => fetchJson('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  register: (email, password) => fetchJson('/api/register', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  getConfig: () => fetchJson('/api/config'),
+  login: (email, password, turnstile) => fetchJson('/api/login', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
+  register: (email, password, turnstile) => fetchJson('/api/register', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
   logout: () => fetchJson('/api/logout', { method: 'POST' }),
   getActivities: () => fetchJson('/api/activities'),
   createActivity: (name, unit, color, dailyGoal) =>
@@ -775,6 +776,61 @@ function themeToggleRow() {
 }
 
 // ==========================================
+// 10.6 КОНФИГ АВТОРИЗАЦИИ (Google / Turnstile)
+// ==========================================
+let turnstileEnabled = false;
+let turnstileToken = null;
+let turnstileWidgetId = null;
+
+async function loadAuthConfig() {
+  let cfg;
+  try { cfg = await api.getConfig(); } catch (e) { return; }
+  if (cfg.googleEnabled) {
+    const g = document.getElementById('googleAuth');
+    g.classList.remove('hidden');
+    g.classList.add('flex');
+  }
+  if (cfg.turnstileSiteKey) initTurnstile(cfg.turnstileSiteKey);
+}
+
+function initTurnstile(siteKey) {
+  turnstileEnabled = true;
+  window.__onTurnstileLoad = () => {
+    if (!window.turnstile) return;
+    turnstileWidgetId = window.turnstile.render('#turnstileBox', {
+      sitekey: siteKey,
+      theme: 'auto',
+      callback: (t) => { turnstileToken = t; },
+      'expired-callback': () => { turnstileToken = null; },
+      'error-callback': () => { turnstileToken = null; },
+    });
+  };
+  const s = document.createElement('script');
+  s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__onTurnstileLoad';
+  s.async = true; s.defer = true;
+  document.head.appendChild(s);
+}
+
+function resetTurnstile() {
+  turnstileToken = null;
+  if (turnstileEnabled && window.turnstile && turnstileWidgetId !== null) {
+    try { window.turnstile.reset(turnstileWidgetId); } catch (e) {}
+  }
+}
+
+// Ошибка входа через Google приходит как ?auth_error=google
+function showAuthErrorFromUrl() {
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('auth_error')) {
+      showToast('Не удалось войти через Google, попробуйте снова', 'error');
+      u.searchParams.delete('auth_error');
+      window.history.replaceState({}, '', u.pathname + u.search);
+    }
+  } catch (e) {}
+}
+
+// ==========================================
 // 11. ИНИЦИАЛИЗАЦИЯ И СОБЫТИЯ
 // ==========================================
 async function initApp() {
@@ -810,11 +866,18 @@ document.getElementById('authForm').addEventListener('submit', async (e) => {
   const password = document.getElementById('passwordInput').value;
   const authError = document.getElementById('authError');
   authError.textContent = '';
+  if (turnstileEnabled && !turnstileToken) {
+    authError.textContent = 'Подтвердите, что вы не робот';
+    return;
+  }
   try {
-    const res = authMode === 'login' ? await api.login(email, password) : await api.register(email, password);
+    const res = authMode === 'login'
+      ? await api.login(email, password, turnstileToken)
+      : await api.register(email, password, turnstileToken);
     showToast(authMode === 'login' ? 'С возвращением!' : 'Аккаунт создан!');
     if (res && res.user) enterApp(res.user);
   } catch (err) {
+    resetTurnstile();
     authError.textContent = err.message || 'Ошибка входа/регистрации';
   }
 });
@@ -925,5 +988,7 @@ deleteActivityBtn.addEventListener('click', async () => {
 
 document.addEventListener('DOMContentLoaded', () => {
   syncThemeUI();
+  showAuthErrorFromUrl();
+  loadAuthConfig();
   initApp();
 });
