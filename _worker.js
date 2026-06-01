@@ -1,0 +1,339 @@
+// trecker — API + аутентификация + раздача статики
+// Маршруты /api/* обрабатывает воркер, остальное отдаёт ASSETS (public/).
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/api/")) {
+      try {
+        return await handleApi(request, env, url);
+      } catch (e) {
+        return json({ error: e.message || "server error" }, 500);
+      }
+    }
+    return env.ASSETS.fetch(request);
+  },
+};
+
+// ---------- роутер ----------
+
+async function handleApi(request, env, url) {
+  const path = url.pathname.replace(/^\/api/, "");
+  const method = request.method;
+
+  if (path === "/register" && method === "POST") return register(request, env);
+  if (path === "/login" && method === "POST") return login(request, env);
+  if (path === "/logout" && method === "POST") return logout(request);
+
+  // дальше — только для авторизованных
+  const uid = await currentUid(request, env);
+  if (!uid) return json({ error: "unauthorized" }, 401);
+
+  if (path === "/me" && method === "GET") {
+    const u = await env.DB.prepare("SELECT id, email FROM users WHERE id=?").bind(uid).first();
+    return json({ user: u });
+  }
+  if (path === "/activities" && method === "GET") return listActivities(env, uid);
+  if (path === "/activities" && method === "POST") return createActivity(request, env, uid);
+
+  const actMatch = path.match(/^\/activities\/(\d+)$/);
+  if (actMatch) {
+    const id = +actMatch[1];
+    if (method === "PATCH") return updateActivity(request, env, uid, id);
+    if (method === "DELETE") return deleteActivity(env, uid, id);
+  }
+
+  if (path === "/logs" && method === "POST") return createLog(request, env, uid);
+  const logMatch = path.match(/^\/logs\/(\d+)$/);
+  if (logMatch && method === "DELETE") return deleteLog(env, uid, +logMatch[1]);
+
+  if (path === "/stats" && method === "GET") return stats(env, uid, url);
+
+  return json({ error: "not found" }, 404);
+}
+
+// ---------- auth: эндпоинты ----------
+
+async function register(request, env) {
+  const b = await request.json().catch(() => ({}));
+  const email = (b.email || "").toLowerCase().trim();
+  const password = b.password || "";
+  if (!validEmail(email)) return json({ error: "Некорректный email" }, 400);
+  if (password.length < 6) return json({ error: "Пароль минимум 6 символов" }, 400);
+
+  const existing = await env.DB.prepare("SELECT id FROM users WHERE email=?").bind(email).first();
+  if (existing) return json({ error: "Такой email уже зарегистрирован" }, 409);
+
+  const hash = await hashPassword(password);
+  const now = new Date().toISOString();
+  const res = await env.DB.prepare(
+    "INSERT INTO users (email, pass_hash, created_at) VALUES (?,?,?)"
+  ).bind(email, hash, now).run();
+  const uid = res.meta.last_row_id;
+
+  await seedDefaultActivities(env, uid);
+  return sessionResponse(uid, env, { user: { id: uid, email } }, request);
+}
+
+async function login(request, env) {
+  const b = await request.json().catch(() => ({}));
+  const email = (b.email || "").toLowerCase().trim();
+  const u = await env.DB.prepare("SELECT * FROM users WHERE email=?").bind(email).first();
+  if (!u || !(await verifyPassword(b.password || "", u.pass_hash))) {
+    return json({ error: "Неверный email или пароль" }, 401);
+  }
+  return sessionResponse(u.id, env, { user: { id: u.id, email: u.email } }, request);
+}
+
+function logout(request) {
+  const isLocal = request ? new URL(request.url).hostname.match(/^(localhost|127\.0\.0\.1)$/) : false;
+  const secureFlag = isLocal ? "" : "; Secure";
+  return json({ ok: true }, 200, {
+    "Set-Cookie": `sid=; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=0`,
+  });
+}
+
+async function seedDefaultActivities(env, uid) {
+  const now = new Date().toISOString();
+  const defaults = [
+    ["Подтягивания", "повторы", "#ef4444", 50, 0],
+    ["Чтение", "страниц", "#22c55e", 20, 1],
+    ["PL-300", "минут", "#6366f1", 30, 2],
+  ];
+  for (const [name, unit, color, goal, sort] of defaults) {
+    await env.DB.prepare(
+      "INSERT INTO activities (user_id, name, unit, color, daily_goal, sort, created_at) VALUES (?,?,?,?,?,?,?)"
+    ).bind(uid, name, unit, color, goal, sort, now).run();
+  }
+}
+
+// ---------- activities ----------
+
+async function listActivities(env, uid) {
+  const r = await env.DB.prepare(
+    "SELECT * FROM activities WHERE user_id=? ORDER BY sort, id"
+  ).bind(uid).all();
+  return json({ activities: r.results });
+}
+
+async function createActivity(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const name = (b.name || "").trim();
+  if (!name) return json({ error: "Нужно название" }, 400);
+  const now = new Date().toISOString();
+  const res = await env.DB.prepare(
+    "INSERT INTO activities (user_id, name, unit, color, daily_goal, sort, created_at) VALUES (?,?,?,?,?,?,?)"
+  ).bind(uid, name, b.unit || "", b.color || "#6366f1", Number(b.daily_goal) || 0, Number(b.sort) || 0, now).run();
+  return json({ id: res.meta.last_row_id });
+}
+
+async function updateActivity(request, env, uid, id) {
+  const b = await request.json().catch(() => ({}));
+  const owned = await env.DB.prepare("SELECT id FROM activities WHERE id=? AND user_id=?").bind(id, uid).first();
+  if (!owned) return json({ error: "not found" }, 404);
+  await env.DB.prepare(
+    "UPDATE activities SET name=?, unit=?, color=?, daily_goal=? WHERE id=? AND user_id=?"
+  ).bind((b.name || "").trim(), b.unit || "", b.color || "#6366f1", Number(b.daily_goal) || 0, id, uid).run();
+  return json({ ok: true });
+}
+
+async function deleteActivity(env, uid, id) {
+  await env.DB.prepare("DELETE FROM logs WHERE activity_id=? AND user_id=?").bind(id, uid).run();
+  await env.DB.prepare("DELETE FROM activities WHERE id=? AND user_id=?").bind(id, uid).run();
+  return json({ ok: true });
+}
+
+// ---------- logs ----------
+
+async function createLog(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const amount = Number(b.amount);
+  if (!b.activity_id || !isFinite(amount) || amount === 0) return json({ error: "invalid" }, 400);
+  const act = await env.DB.prepare("SELECT id FROM activities WHERE id=? AND user_id=?").bind(b.activity_id, uid).first();
+  if (!act) return json({ error: "no activity" }, 404);
+  const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
+  const logged_at = new Date().toISOString();
+  await env.DB.prepare(
+    "INSERT INTO logs (user_id, activity_id, amount, day, logged_at) VALUES (?,?,?,?,?)"
+  ).bind(uid, b.activity_id, amount, day, logged_at).run();
+  return json({ ok: true });
+}
+
+async function deleteLog(env, uid, id) {
+  await env.DB.prepare("DELETE FROM logs WHERE id=? AND user_id=?").bind(id, uid).run();
+  return json({ ok: true });
+}
+
+// ---------- stats ----------
+
+async function stats(env, uid, url) {
+  const today = isValidDay(url.searchParams.get("today")) ? url.searchParams.get("today") : new Date().toISOString().slice(0, 10);
+  const days = Math.min(Math.max(parseInt(url.searchParams.get("days") || "30") || 30, 1), 90);
+  const acts = (await env.DB.prepare("SELECT * FROM activities WHERE user_id=? ORDER BY sort, id").bind(uid).all()).results;
+
+  const fromDay = addDays(today, -(days - 1));
+  const sumRows = (await env.DB.prepare(
+    "SELECT activity_id, day, SUM(amount) total FROM logs WHERE user_id=? AND day>=? AND day<=? GROUP BY activity_id, day"
+  ).bind(uid, fromDay, today).all()).results;
+  const dayRows = (await env.DB.prepare(
+    "SELECT DISTINCT activity_id, day FROM logs WHERE user_id=? ORDER BY day DESC"
+  ).bind(uid).all()).results;
+
+  const daysByAct = {};
+  for (const r of dayRows) (daysByAct[r.activity_id] ||= new Set()).add(r.day);
+  const sumByActDay = {};
+  for (const r of sumRows) (sumByActDay[r.activity_id] ||= {})[r.day] = r.total;
+
+  const activities = acts.map((a) => {
+    const set = daysByAct[a.id] || new Set();
+    let streak = 0;
+    let cursor = set.has(today) ? today : addDays(today, -1);
+    while (set.has(cursor)) {
+      streak++;
+      cursor = addDays(cursor, -1);
+    }
+    const series = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = addDays(today, -i);
+      series.push({ day: d, total: (sumByActDay[a.id] && sumByActDay[a.id][d]) || 0 });
+    }
+    return {
+      ...a,
+      today_total: (sumByActDay[a.id] && sumByActDay[a.id][today]) || 0,
+      streak,
+      series,
+    };
+  });
+
+  return json({ today, days, activities });
+}
+
+// ---------- сессии (подписанная cookie) ----------
+
+function secret(env) {
+  const s = env.SESSION_SECRET;
+  if (!s) throw new Error("SESSION_SECRET не задан (Secret в Cloudflare или .dev.vars)");
+  return s;
+}
+
+async function currentUid(request, env) {
+  const token = getCookie(request, "sid");
+  if (!token) return null;
+  return verifySession(token, secret(env));
+}
+
+async function sessionResponse(uid, env, body, request) {
+  const token = await createSession(uid, secret(env));
+  const isLocal = request ? new URL(request.url).hostname.match(/^(localhost|127\.0\.0\.1)$/) : false;
+  const secureFlag = isLocal ? "" : "; Secure";
+  return json(body, 200, {
+    "Set-Cookie": `sid=${token}; HttpOnly${secureFlag}; SameSite=Lax; Path=/; Max-Age=${30 * 86400}`,
+  });
+}
+
+async function createSession(uid, sec) {
+  const body = b64url(enc.encode(JSON.stringify({ uid, exp: Date.now() + 30 * 86400000 })));
+  const sig = await sign(body, sec);
+  return `${body}.${sig}`;
+}
+
+async function verifySession(token, sec) {
+  const [body, sig] = token.split(".");
+  if (!body || !sig) return null;
+  const expected = await sign(body, sec);
+  if (!timingSafeEqual(sig, expected)) return null;
+  try {
+    const data = JSON.parse(dec.decode(fromB64url(body)));
+    if (!data.exp || data.exp < Date.now()) return null;
+    return data.uid;
+  } catch {
+    return null;
+  }
+}
+
+async function sign(data, sec) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(sec), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  return b64url(new Uint8Array(sig));
+}
+
+// ---------- пароли (PBKDF2-SHA256) ----------
+
+async function hashPassword(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iterations = 100000;
+  const bits = await pbkdf2(password, salt, iterations);
+  return `pbkdf2$${iterations}$${b64(salt)}$${b64(bits)}`;
+}
+
+async function verifyPassword(password, stored) {
+  const parts = (stored || "").split("$");
+  if (parts.length !== 4) return false;
+  const iterations = parseInt(parts[1], 10);
+  const salt = fromB64(parts[2]);
+  const bits = await pbkdf2(password, salt, iterations);
+  return timingSafeEqual(b64(bits), parts[3]);
+}
+
+async function pbkdf2(password, salt, iterations) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
+  return new Uint8Array(bits);
+}
+
+// ---------- утилиты ----------
+
+function json(data, status = 200, extraHeaders) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", ...(extraHeaders || {}) },
+  });
+}
+
+function getCookie(request, name) {
+  const h = request.headers.get("Cookie") || "";
+  const m = h.match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
+  return m ? m[1] : null;
+}
+
+function validEmail(s) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+function isValidDay(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function addDays(day, n) {
+  const d = new Date(day + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+function b64(bytes) {
+  let s = "";
+  for (const x of bytes) s += String.fromCharCode(x);
+  return btoa(s);
+}
+function fromB64(str) {
+  const bin = atob(str);
+  const a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+function b64url(bytes) {
+  return b64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromB64url(str) {
+  return fromB64(str.replace(/-/g, "+").replace(/_/g, "/"));
+}

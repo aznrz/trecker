@@ -1,0 +1,3 @@
+# Скопируй в .dev.vars (он в .gitignore) для локального `wrangler dev`.
+# В продакшене задаётся как Secret в дашборде Cloudflare (Settings → Variables and Secrets).
+SESSION_SECRET=change-me-to-a-long-random-string
