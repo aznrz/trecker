@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Antigravity | Today</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-tint": "#005cbb",
+                        "on-error": "#ffffff",
+                        "secondary": "#006e1c",
+                        "surface-container-low": "#f6f3f5",
+                        "on-tertiary-fixed-variant": "#7200a3",
+                        "on-surface-variant": "#414753",
+                        "on-primary-fixed": "#001b3f",
+                        "surface": "#fcf8fb",
+                        "tertiary-container": "#a842db",
+                        "on-secondary-fixed-variant": "#005313",
+                        "primary": "#0059b5",
+                        "surface-container-high": "#eae7ea",
+                        "surface-variant": "#e4e2e4",
+                        "tertiary-fixed-dim": "#e9b3ff",
+                        "secondary-fixed-dim": "#42e355",
+                        "on-surface": "#1b1b1d",
+                        "on-primary": "#ffffff",
+                        "inverse-primary": "#abc7ff",
+                        "secondary-fixed": "#70ff76",
+                        "inverse-on-surface": "#f3f0f2",
+                        "surface-dim": "#dcd9dc",
+                        "on-secondary": "#ffffff",
+                        "surface-container-highest": "#e4e2e4",
+                        "on-tertiary-fixed": "#310048",
+                        "primary-fixed": "#d7e2ff",
+                        "on-secondary-fixed": "#002204",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "outline-variant": "#c1c6d6",
+                        "on-primary-container": "#fcfbff",
+                        "on-background": "#1b1b1d",
+                        "on-primary-fixed-variant": "#00458f",
+                        "primary-fixed-dim": "#abc7ff",
+                        "secondary-container": "#60fe6c",
+                        "surface-container": "#f0edef",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-container": "#fffafa",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#f6d9ff",
+                        "on-secondary-container": "#00731d",
+                        "background": "#fcf8fb",
+                        "outline": "#717785",
+                        "primary-container": "#0071e3",
+                        "surface-bright": "#fcf8fb",
+                        "inverse-surface": "#303032",
+                        "tertiary": "#8c21c0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "12px",
+                        "margin": "32px",
+                        "lg": "48px",
+                        "base": "8px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "md": "24px",
+                        "xl": "80px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Sora"],
+                        "body-md": ["Sora"],
+                        "label-md": ["Sora"],
+                        "headline-xl": ["Sora"],
+                        "headline-lg": ["Sora"],
+                        "headline-lg-mobile": ["Sora"],
+                        "label-sm": ["Sora"],
+                        "body-lg": ["Sora"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "headline-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #F5F5F7;
+            font-family: 'Sora', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(210, 210, 215, 0.5);
+        }
+        .neon-glow {
+            box-shadow: 0 0 15px rgba(96, 254, 108, 0.4);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #D2D2D7;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-screen w-72 bg-surface/70 backdrop-blur-3xl border-r border-outline-variant/30 flex flex-col gap-sm p-md z-50">
+<div class="mb-lg px-2">
+<h1 class="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">Antigravity</h1>
+<p class="text-label-md font-label-md text-on-surface-variant">Habit Tracker</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-sm px-4 py-3 bg-primary text-on-primary rounded-xl font-semibold shadow-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="text-label-md font-label-md">Today</span>
+</a>
+<a class="flex items-center gap-sm px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50 rounded-xl transition-all duration-300 ease-in-out hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="text-label-md font-label-md">Stats</span>
+</a>
+<a class="flex items-center gap-sm px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50 rounded-xl transition-all duration-300 ease-in-out hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="fitness_center">fitness_center</span>
+<span class="text-label-md font-label-md">Activities</span>
+</a>
+</nav>
+<div class="mt-auto">
+<button class="w-full py-4 bg-primary text-on-primary rounded-xl font-semibold shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined text-[20px]" data-icon="add">add</span>
+<span class="text-label-md font-label-md">Add New Habit</span>
+</button>
+<div class="mt-md p-4 glass-panel rounded-2xl flex items-center gap-sm shadow-sm">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest overflow-hidden">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a young, modern individual with a friendly expression. The lighting is bright and clean, consistent with a high-end corporate lifestyle aesthetic. The background is a soft, out-of-focus modern office with glass walls and white surfaces, creating a sense of professional success and clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDxTNlo7Evw_ORJ7Z6TN0fIqOKwV5BOJmh_E5GTVWafYWNsCUANFfVch2Z4acscLIGVg9T__hu05JnBUhy4ZHw7LFcTudVlxB6GJiSyM0gObjfNNb7UnDa1ORqfciLymgzuom9jmtygCT20wPRJ9S1B038RmhZop48r6wjAeyYYN1gekNfsMgXL-t8sFOB3eBxFc3KKDSInnDkcehn4n8mIU6vNM-DKBwJLXWw0AXuEZhDbqD4YaGDRWzGSTURA2z1niMhvs0TYIEA"/>
+</div>
+<div>
+<p class="text-label-md font-label-md font-bold">Alex Hero</p>
+<p class="text-label-sm font-label-sm text-outline">Pro Plan</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-72 min-h-screen p-margin max-w-[1440px]">
+<!-- Header Section -->
+<header class="mb-xl animate-in fade-in slide-in-from-top-4 duration-700">
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-headline-xl font-headline-xl text-on-surface">Hi, Hero!</h2>
+<p class="text-body-lg font-body-lg text-on-surface-variant mt-2">Ready to ascend today?</p>
+</div>
+<div class="glass-panel px-6 py-4 rounded-2xl shadow-sm text-right">
+<p class="text-label-sm font-label-sm text-outline uppercase tracking-wider">Daily Score</p>
+<p class="text-headline-md font-headline-md text-primary">840 XP</p>
+</div>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Habit Card: Pull-ups -->
+<div class="col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<span class="text-headline-md font-headline-md">💪 Pull-ups</span>
+<div class="flex items-center gap-1 text-secondary font-semibold">
+<span class="material-symbols-outlined text-[18px]" data-icon="local_fire_department" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<span class="text-label-md font-label-md">12 Day Streak</span>
+</div>
+</div>
+<span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors">12 / 20</span>
+</div>
+<div class="w-full h-4 bg-surface-container-high rounded-full overflow-hidden relative">
+<div class="absolute top-0 left-0 h-full bg-secondary-container neon-glow transition-all duration-700 ease-out" style="width: 60%"></div>
+</div>
+<div class="grid grid-cols-3 gap-sm mt-auto">
+<button class="glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95">+1</button>
+<button class="glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95">+5</button>
+<button class="bg-on-surface text-on-primary py-3 rounded-xl text-label-md font-label-md hover:opacity-90 transition-opacity active:scale-95">Done</button>
+</div>
+</div>
+<!-- Habit Card: Study -->
+<div class="col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<span class="text-headline-md font-headline-md">📖 PL-300 Study</span>
+<div class="flex items-center gap-1 text-secondary font-semibold">
+<span class="material-symbols-outlined text-[18px]" data-icon="local_fire_department" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<span class="text-label-md font-label-md">5 Day Streak</span>
+</div>
+</div>
+<span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors">45 / 60</span>
+</div>
+<div class="w-full h-4 bg-surface-container-high rounded-full overflow-hidden relative">
+<div class="absolute top-0 left-0 h-full bg-primary-container neon-glow transition-all duration-700 ease-out" style="width: 75%"></div>
+</div>
+<div class="grid grid-cols-3 gap-sm mt-auto">
+<button class="glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95">+10m</button>
+<button class="glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95">+20m</button>
+<button class="bg-on-surface text-on-primary py-3 rounded-xl text-label-md font-label-md hover:opacity-90 transition-opacity active:scale-95">Finish</button>
+</div>
+</div>
+<!-- Visual Insight Card (Bento Style) -->
+<div class="col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 relative overflow-hidden group">
+<div class="absolute inset-0 z-0 opacity-10 group-hover:scale-110 transition-transform duration-[2000ms]">
+<img alt="Atmospheric abstract pattern" class="w-full h-full object-cover" data-alt="A sophisticated abstract gradient composition featuring soft transitions between light greys, whites, and subtle hints of neon green. The texture resembles high-quality frosted glass or a digital atmosphere, creating a sense of depth and tranquility. The overall aesthetic is ultra-modern, minimalist, and premium, perfect for a high-end productivity application." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCn8pxU6-JmVH3ldOlfDfC6RrUJW8EEi8rY5KnUJMvOuwrVt9rDiMvvc2XaLJX_AWnkgHoepNjI3saNQfMNtMgGoITPi9x9R5urLxbms0cZyb-3834Kc5mmOIMlsKcPdxXJ2yohOf3TdkD0H8Mm5xp3dwepKgXo6bpjSEoK9aemgjtE1vH4DS1ir3DFueq5HsqpDKaRFzjrWALZfOf7S9u1qD1lWC2_VXFUW-5bt3zwchCkulpZ_g9zsYVuQeJ8bk3vzHZ4FB3CgaY"/>
+</div>
+<div class="relative z-10 flex flex-col h-full">
+<h3 class="text-headline-md font-headline-md mb-2">Weekly Goal</h3>
+<p class="text-body-md font-body-md text-on-surface-variant mb-6">You're 15% ahead of your weekly baseline. Keep it up!</p>
+<div class="mt-auto flex justify-center">
+<div class="w-32 h-32 rounded-full border-[12px] border-surface-container-high flex items-center justify-center relative">
+<div class="absolute inset-0 rounded-full border-[12px] border-secondary-container border-t-transparent border-r-transparent transform -rotate-45 neon-glow"></div>
+<span class="text-headline-md font-bold">85%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Habit Card: Push-ups -->
+<div class="col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500">
+<div class="flex justify-between items-start">
+<div class="flex flex-col gap-1">
+<span class="text-headline-md font-headline-md">🏃 Push-ups</span>
+<div class="flex items-center gap-1 text-secondary font-semibold">
+<span class="material-symbols-outlined text-[18px]" data-icon="local_fire_department" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<span class="text-label-md font-label-md">28 Day Streak</span>
+</div>
+</div>
+<span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors">40 / 50</span>
+</div>
+<div class="w-full h-4 bg-surface-container-high rounded-full overflow-hidden relative">
+<div class="absolute top-0 left-0 h-full bg-secondary-container neon-glow transition-all duration-700 ease-out" style="width: 80%"></div>
+</div>
+<div class="grid grid-cols-3 gap-sm mt-auto">
+<button class="glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95">+5</button>
+<button class="glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95">+10</button>
+<button class="bg-on-surface text-on-primary py-3 rounded-xl text-label-md font-label-md hover:opacity-90 transition-opacity active:scale-95">Done</button>
+</div>
+</div>
+<!-- Activity History (Asymmetric Bento) -->
+<div class="col-span-12 lg:col-span-8 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-headline-md font-headline-md">Recent Activity</h3>
+<button class="text-primary text-label-md font-label-md hover:underline">View History</button>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="fitness_center">fitness_center</span>
+</div>
+<div>
+<p class="text-label-md font-label-md font-bold">Pull-ups Set</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">2 hours ago</p>
+</div>
+</div>
+<p class="text-label-md font-label-md font-semibold text-secondary">+10 XP</p>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+</div>
+<div>
+<p class="text-label-md font-label-md font-bold">Reading Session</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">5 hours ago</p>
+</div>
+</div>
+<p class="text-label-md font-label-md font-semibold text-secondary">+25 XP</p>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="water_drop">water_drop</span>
+</div>
+<div>
+<p class="text-label-md font-label-md font-bold">Hydration Goal Met</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Yesterday</p>
+</div>
+</div>
+<p class="text-label-md font-label-md font-semibold text-secondary">+50 XP</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Interactive Script for micro-interactions -->
+<script>
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('mousedown', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('mouseup', () => {
+                button.classList.remove('scale-95');
+            });
+            button.addEventListener('mouseleave', () => {
+                button.classList.remove('scale-95');
+            });
+        });
+
+        // Simple animation trigger for progress bars on load
+        window.addEventListener('load', () => {
+            const progressBars = document.querySelectorAll('.neon-glow');
+            progressBars.forEach(bar => {
+                const finalWidth = bar.style.width;
+                bar.style.width = '0%';
+                setTimeout(() => {
+                    bar.style.width = finalWidth;
+                }, 100);
+            });
+        });
+    </script>
+</body></html>
