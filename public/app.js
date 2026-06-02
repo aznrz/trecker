@@ -14,6 +14,7 @@ const state = {
   statsDays: 30,
   statsPeriod: 7,
   selectedColor: '#0059b5',
+  gymSets: [], // подходы текущей тренировки (Gym Mode, без БД)
 };
 
 // Палитра, читаемая на светлом фоне
@@ -138,16 +139,6 @@ function pageHeader(title, subtitle, rightNode) {
   return header;
 }
 
-function scoreCard(label, value) {
-  const card = document.createElement('div');
-  card.className = 'glass-panel px-6 py-4 rounded-2xl shadow-sm text-right';
-  card.innerHTML = `
-    <p class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${label}</p>
-    <p class="text-headline-md font-headline-md text-primary">${value}</p>
-  `;
-  return card;
-}
-
 function backHeader(title) {
   const wrap = document.createElement('div');
   wrap.className = 'mb-md flex items-center gap-3';
@@ -197,10 +188,12 @@ async function renderCurrentTab() {
       await renderActivityDetail(state.selectedActivityId);
     } else if (state.activeTab === 'today') {
       await renderDashboardTab();
-    } else if (state.activeTab === 'activities') {
-      await renderActivitiesTab();
+    } else if (state.activeTab === 'calendar') {
+      await renderCalendarTab();
     } else if (state.activeTab === 'stats') {
       await renderStatsTab();
+    } else if (state.activeTab === 'profile') {
+      await renderProfileTab();
     }
   } catch (err) {
     showToast(err.message, 'error');
@@ -235,7 +228,8 @@ async function renderDashboardTab() {
     overallPercent = Math.round((completedSum / activities.length) * 100);
   }
 
-  viewContainer.appendChild(pageHeader('Hi, Hero!', 'Ready to ascend today?', scoreCard('Daily Score', `${overallPercent}%`)));
+  // Задача 1: убран дублирующий блок «Daily Score» — процент остаётся только в карточке Daily Momentum
+  viewContainer.appendChild(pageHeader('Hi, Hero!', 'Ready to ascend today?'));
 
   if (activities.length === 0) {
     viewContainer.appendChild(emptyState('Привычек пока нет', 'Добавьте первую цель на вкладке Activities.'));
@@ -602,18 +596,48 @@ function miniStat(label, value, border) {
 }
 
 // ==========================================
-// 8. ACTIVITIES (CRUD)
+// 8. ПРОФИЛЬ (настройки + управление привычками)
 // ==========================================
-async function renderActivitiesTab() {
+async function renderProfileTab() {
+  viewContainer.appendChild(pageHeader('Профиль', 'Настройки и привычки'));
+
+  // Карточка пользователя
+  const userCard = document.createElement('div');
+  userCard.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex items-center justify-between gap-3 mb-md';
+  const email = (state.user && state.user.email) || '';
+  userCard.innerHTML = `
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+        <span class="material-symbols-outlined text-2xl">person</span>
+      </div>
+      <div class="min-w-0">
+        <p class="text-headline-md font-headline-md truncate">${esc(email.split('@')[0] || 'Hero')}</p>
+        <p class="text-label-sm font-label-sm text-on-surface-variant truncate">${esc(email)}</p>
+      </div>
+    </div>
+  `;
+  const logoutBtn = document.createElement('button');
+  logoutBtn.type = 'button';
+  logoutBtn.className = 'btn-ghost px-4 py-2 shrink-0 flex items-center gap-2';
+  logoutBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">logout</span> Выйти';
+  logoutBtn.addEventListener('click', doLogout);
+  userCard.appendChild(logoutBtn);
+  viewContainer.appendChild(userCard);
+
+  // Переключатель темы
+  viewContainer.appendChild(themeToggleRow());
+
+  // Управление привычками
+  const habitsHead = document.createElement('div');
+  habitsHead.className = 'flex items-center justify-between gap-3 mt-md mb-md';
+  habitsHead.innerHTML = '<h3 class="text-headline-md font-headline-md">Мои привычки</h3>';
   const addBtnNode = document.createElement('button');
   addBtnNode.type = 'button';
   addBtnNode.className = 'btn-primary flex items-center gap-2 px-5';
   addBtnNode.innerHTML = '<span class="material-symbols-outlined text-[20px]">add</span> Добавить';
   addBtnNode.addEventListener('click', () => openActivityModal(null));
-  viewContainer.appendChild(pageHeader('Привычки', 'Управляй своими целями', addBtnNode));
-
-  // Переключатель темы (доступен и на мобильном)
-  viewContainer.appendChild(themeToggleRow());
+  habitsHead.appendChild(addBtnNode);
+  viewContainer.appendChild(habitsHead);
 
   let res;
   try {
@@ -654,6 +678,95 @@ async function renderActivitiesTab() {
     grid.appendChild(item);
   });
   viewContainer.appendChild(grid);
+}
+
+// ==========================================
+// 8.5 КАЛЕНДАРЬ (сетка месяца с отметками выполнения)
+// ==========================================
+async function renderCalendarTab() {
+  viewContainer.appendChild(pageHeader('Календарь', 'Дни с выполненными привычками'));
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+  const todayDate = localDay();
+
+  // Тянем статистику с начала месяца по сегодня, чтобы знать дни с активностью
+  const daysSoFar = now.getDate();
+  let resp;
+  try {
+    resp = await api.getStats(todayDate, daysSoFar);
+  } catch (err) {
+    showToast('Ошибка загрузки календаря', 'error');
+    return;
+  }
+  const activities = resp.activities || [];
+
+  // Карта: день (YYYY-MM-DD) → массив цветов выполнивших привычек
+  const dotsByDay = {};
+  activities.forEach((act) => {
+    const color = act.color || '#0059b5';
+    (act.series || []).forEach((s) => {
+      if (s.total > 0) {
+        (dotsByDay[s.day] = dotsByDay[s.day] || []).push(color);
+      }
+    });
+  });
+
+  const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const wrap = document.createElement('div');
+  wrap.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
+  wrap.innerHTML = `<h3 class="text-headline-md font-headline-md mb-md text-center">${monthNames[month]} ${year}</h3>`;
+
+  // Заголовки дней недели (Пн..Вс)
+  const grid = document.createElement('div');
+  grid.className = 'cal-grid';
+  ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].forEach((d) => {
+    const dow = document.createElement('div');
+    dow.className = 'cal-dow';
+    dow.textContent = d;
+    grid.appendChild(dow);
+  });
+
+  // Пустые ячейки до первого дня (неделя начинается с понедельника)
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = Пн
+  for (let i = 0; i < firstDow; i++) {
+    const e = document.createElement('div');
+    e.className = 'cal-cell empty';
+    grid.appendChild(e);
+  }
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= daysInMonth; day++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (iso === todayDate ? ' today' : '');
+
+    const num = document.createElement('span');
+    num.textContent = day;
+    cell.appendChild(num);
+
+    const dots = document.createElement('div');
+    dots.className = 'cal-dots';
+    const colors = [...new Set(dotsByDay[iso] || [])].slice(0, 3);
+    colors.forEach((c) => {
+      const dot = document.createElement('span');
+      dot.className = 'cal-dot';
+      dot.style.background = c;
+      dots.appendChild(dot);
+    });
+    cell.appendChild(dots);
+    grid.appendChild(cell);
+  }
+
+  wrap.appendChild(grid);
+  viewContainer.appendChild(wrap);
+
+  // Легенда
+  const legend = document.createElement('p');
+  legend.className = 'text-label-sm font-label-sm text-on-surface-variant text-center mt-md';
+  legend.textContent = 'Цветные точки под датой — выполненные в этот день привычки.';
+  viewContainer.appendChild(legend);
 }
 
 // ==========================================
@@ -963,6 +1076,104 @@ function showAuthErrorFromUrl() {
 }
 
 // ==========================================
+// 10.7 УВЕДОМЛЕНИЯ (Колокольчик — мотивация на сегодня)
+// ==========================================
+const MOTIVATION = [
+  'Сегодня — лучший день, чтобы стать на 1% лучше. 💪',
+  'Маленький шаг сегодня — большой результат через год. 🚀',
+  'Дисциплина — это мост между целью и достижением.',
+  'Не пропусти сегодня: серия (streak) держится на ежедневности. 🔥',
+  'Ты не обязан быть идеальным. Просто будь последовательным.',
+  'Каждая отметка приближает тебя к лучшей версии себя. ✨',
+  'Мотивация запускает, привычка удерживает. Действуй!',
+];
+
+const notifModal = document.getElementById('notifModal');
+
+function openNotifModal() {
+  const text = document.getElementById('notifText');
+  // Сообщение «на сегодня» — стабильно в течение дня (зависит от даты)
+  const d = new Date();
+  const idx = (d.getFullYear() + d.getMonth() + d.getDate()) % MOTIVATION.length;
+  if (text) text.textContent = MOTIVATION[idx];
+  notifModal.classList.remove('hidden');
+}
+function closeNotifModal() { notifModal.classList.add('hidden'); }
+
+// ==========================================
+// 10.8 GYM MODE (полноэкранная тренировка, UI без БД)
+// ==========================================
+const gymModal = document.getElementById('gymModal');
+const gymExerciseSelect = document.getElementById('gymExerciseSelect');
+const gymWeightInput = document.getElementById('gymWeightInput');
+const gymRepsInput = document.getElementById('gymRepsInput');
+const gymSetList = document.getElementById('gymSetList');
+const gymSetCount = document.getElementById('gymSetCount');
+
+function openGymModal() {
+  state.gymSets = [];
+  gymWeightInput.value = '';
+  gymRepsInput.value = '';
+  renderGymSets();
+  gymModal.classList.remove('hidden');
+}
+function closeGymModal() { gymModal.classList.add('hidden'); }
+
+function renderGymSets() {
+  gymSetList.textContent = '';
+  gymSetCount.textContent = state.gymSets.length ? `(${state.gymSets.length})` : '';
+  if (state.gymSets.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'text-label-sm font-label-sm text-on-surface-variant text-center py-3';
+    empty.textContent = 'Пока нет подходов. Добавьте первый.';
+    gymSetList.appendChild(empty);
+    return;
+  }
+  state.gymSets.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'gym-set-row';
+    row.innerHTML = `
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-label-sm font-bold shrink-0">${i + 1}</span>
+        <div class="min-w-0">
+          <p class="text-label-md font-label-md font-bold truncate">${esc(s.exercise)}</p>
+          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} кг × ${s.reps}</p>
+        </div>
+      </div>
+    `;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'icon-btn shrink-0';
+    del.innerHTML = '<span class="material-symbols-outlined text-[20px]">delete</span>';
+    del.addEventListener('click', () => { state.gymSets.splice(i, 1); renderGymSets(); });
+    row.appendChild(del);
+    gymSetList.appendChild(row);
+  });
+}
+
+function addGymSet() {
+  const exercise = gymExerciseSelect.value;
+  const weight = parseFloat(gymWeightInput.value);
+  const reps = parseInt(gymRepsInput.value);
+  if (!isFinite(weight) || weight < 0 || !isFinite(reps) || reps <= 0) {
+    showToast('Введите вес и повторения', 'error');
+    return;
+  }
+  state.gymSets.push({ exercise, weight: Number(weight), reps });
+  gymRepsInput.value = '';
+  renderGymSets();
+  gymRepsInput.focus();
+}
+
+function finishGym() {
+  const count = state.gymSets.length;
+  // UI-режим без БД: пока просто закрываем и показываем сводку
+  closeGymModal();
+  showToast(count > 0 ? `Тренировка завершена: ${count} подх. 💪` : 'Тренировка завершена');
+  state.gymSets = [];
+}
+
+// ==========================================
 // 11. ИНИЦИАЛИЗАЦИЯ И СОБЫТИЯ
 // ==========================================
 async function initApp() {
@@ -1035,12 +1246,27 @@ document.querySelectorAll('[data-tab]').forEach((btn) => {
 // Переключатель темы в сайдбаре
 document.getElementById('themeToggleSide').addEventListener('click', toggleTheme);
 
-// Add New Habit
-document.getElementById('addHabitBtn').addEventListener('click', () => openActivityModal(null));
+// Хелпер: безопасная привязка (элемент может отсутствовать)
+function on(id, event, handler) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener(event, handler);
+}
 
-// Быстрая запись (кнопка в сайдбаре и центральная в нижнем баре)
-document.getElementById('quickLogBtnSide').addEventListener('click', openLogModal);
-document.getElementById('quickLogBtnBar').addEventListener('click', openLogModal);
+// Быстрая запись (кнопка в сайдбаре, десктоп)
+on('quickLogBtnSide', 'click', openLogModal);
+
+// Gym Mode (центральная кнопка таб-бара + кнопка в сайдбаре)
+on('gymModeBtnBar', 'click', openGymModal);
+on('gymModeBtnSide', 'click', openGymModal);
+on('closeGymBtn', 'click', closeGymModal);
+on('gymAddSetBtn', 'click', addGymSet);
+on('gymFinishBtn', 'click', finishGym);
+
+// Колокольчик уведомлений (мобильная шапка + сайдбар)
+on('notifBtn', 'click', openNotifModal);
+on('notifBtnSide', 'click', openNotifModal);
+on('closeNotifBtn', 'click', closeNotifModal);
+on('notifOkBtn', 'click', closeNotifModal);
 
 // Выход
 async function doLogout() {
