@@ -78,36 +78,36 @@
           <span class="material-symbols-outlined text-4xl text-primary">check_circle</span>
         </div>
         <h1 class="text-headline-xl font-headline-xl text-on-surface">Habit Tracker</h1>
-        <p class="text-body-lg font-body-lg text-on-surface-variant mt-1">Track your habits. Perfect your routine.</p>
+        <p class="text-body-lg font-body-lg text-on-surface-variant mt-1" data-i18n="auth_subtitle">Track your habits. Perfect your routine.</p>
       </div>
 
       <div class="flex bg-surface-container rounded-xl p-1 mb-6 border border-outline-variant/40" id="authTabs">
-        <button class="flex-1 py-3 text-center text-label-md font-label-md rounded-lg bg-primary text-on-primary shadow transition-all" data-action="login-tab" type="button">SIGN IN</button>
-        <button class="flex-1 py-3 text-center text-label-md font-label-md text-on-surface-variant rounded-lg transition-all" data-action="register-tab" type="button">SIGN UP</button>
+        <button class="flex-1 py-3 text-center text-label-md font-label-md rounded-lg bg-primary text-on-primary shadow transition-all" data-action="login-tab" type="button" data-i18n="sign_in">SIGN IN</button>
+        <button class="flex-1 py-3 text-center text-label-md font-label-md text-on-surface-variant rounded-lg transition-all" data-action="register-tab" type="button" data-i18n="sign_up">SIGN UP</button>
       </div>
 
       <form id="authForm" class="glass-panel rounded-2xl p-6 flex flex-col gap-4 shadow-xl">
         <div class="flex flex-col gap-2">
-          <label for="emailInput" class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Email</label>
+          <label for="emailInput" class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider" data-i18n="email">Email</label>
           <input type="email" id="emailInput" placeholder="name@domain.com" class="field-input" required autocomplete="email" />
         </div>
         <div class="flex flex-col gap-2">
-          <label for="passwordInput" class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Password</label>
+          <label for="passwordInput" class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider" data-i18n="password">Password</label>
           <input type="password" id="passwordInput" placeholder="At least 6 characters" class="field-input" required autocomplete="current-password" minlength="6" />
         </div>
         <div id="turnstileBox" class="flex justify-center empty:hidden"></div>
         <div class="text-center text-error text-label-md font-semibold min-h-[18px]" id="authError"></div>
-        <button type="submit" class="w-full py-4 bg-primary text-on-primary text-label-md font-label-md font-semibold rounded-xl shadow-lg hover:opacity-90 active:scale-[0.98] transition-all" id="authSubmitBtn">SIGN IN</button>
+        <button type="submit" class="w-full py-4 bg-primary text-on-primary text-label-md font-label-md font-semibold rounded-xl shadow-lg hover:opacity-90 active:scale-[0.98] transition-all" id="authSubmitBtn" data-i18n="sign_in">SIGN IN</button>
       </form>
 
       <!-- Вход через Google (показывается, если настроен на бэкенде) -->
       <div id="googleAuth" class="hidden flex-col gap-4 mt-4">
         <div class="flex items-center gap-3 text-on-surface-variant/60 text-label-sm">
-          <span class="flex-1 h-px bg-outline-variant/40"></span> or <span class="flex-1 h-px bg-outline-variant/40"></span>
+          <span class="flex-1 h-px bg-outline-variant/40"></span> <span data-i18n="or">or</span> <span class="flex-1 h-px bg-outline-variant/40"></span>
         </div>
         <a href="/api/auth/google" id="googleBtn" class="w-full py-4 glass-panel rounded-xl flex items-center justify-center gap-3 font-label-md text-label-md font-semibold text-on-surface hover:bg-surface-container-high/60 active:scale-[0.98] transition-all">
           <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-          Sign in with Google
+          <span data-i18n="sign_in_google">Sign in with Google</span>
         </a>
       </div>
     </div>
@@ -121,7 +121,7 @@
       <div class="mb-6 px-1 flex items-start justify-between gap-2">
         <div class="min-w-0">
           <h1 class="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">Habit Tracker</h1>
-          <p class="text-label-sm font-label-sm text-on-surface-variant">Habit tracker</p>
+          <p class="text-label-sm font-label-sm text-on-surface-variant" data-i18n="settings_habits">Habit tracker</p>
         </div>
         <button id="notifBtnSide" type="button" class="icon-btn relative shrink-0" title="Today's motivation">
           <span class="material-symbols-outlined text-[22px]">notifications</span>
@@ -132,26 +132,26 @@
       <nav class="flex-1 flex flex-col gap-1">
         <button class="nav-link" data-tab="today" type="button">
           <span class="material-symbols-outlined">calendar_today</span>
-          <span class="text-label-md font-label-md">Today</span>
+          <span class="text-label-md font-label-md" data-i18n="today">Today</span>
         </button>
         <button class="nav-link" data-tab="calendar" type="button">
           <span class="material-symbols-outlined">calendar_month</span>
-          <span class="text-label-md font-label-md">Calendar</span>
+          <span class="text-label-md font-label-md" data-i18n="calendar">Calendar</span>
         </button>
         <button class="nav-link" data-tab="stats" type="button">
           <span class="material-symbols-outlined">bar_chart</span>
-          <span class="text-label-md font-label-md">Stats</span>
+          <span class="text-label-md font-label-md" data-i18n="stats">Stats</span>
         </button>
         <button class="nav-link" data-tab="profile" type="button">
           <span class="material-symbols-outlined">person</span>
-          <span class="text-label-md font-label-md">Profile</span>
+          <span class="text-label-md font-label-md" data-i18n="profile">Profile</span>
         </button>
       </nav>
 
       <div class="mt-auto flex flex-col gap-4">
         <button id="gymModeBtnSide" type="button" class="w-full py-4 rounded-xl font-semibold shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-on-primary" style="background:linear-gradient(135deg, rgb(var(--primary)), rgb(var(--tertiary)));">
           <span class="material-symbols-outlined text-[22px]">exercise</span>
-          <span class="text-label-md font-label-md">Gym Mode</span>
+          <span class="text-label-md font-label-md" data-i18n="gym_mode">Gym Mode</span>
         </button>
         <div class="p-3 glass-panel rounded-2xl flex items-center justify-between gap-2 shadow-sm">
           <div class="flex items-center gap-2 min-w-0">
@@ -195,22 +195,22 @@
     <nav class="bottom-bar">
       <button class="bottom-tab" data-tab="today" type="button">
         <span class="material-symbols-outlined">calendar_today</span>
-        <span>Today</span>
+        <span data-i18n="today">Today</span>
       </button>
       <button class="bottom-tab" data-tab="calendar" type="button">
         <span class="material-symbols-outlined">calendar_month</span>
-        <span>Calendar</span>
+        <span data-i18n="calendar">Calendar</span>
       </button>
       <button id="gymModeBtnBar" class="bottom-fab" type="button" title="Gym Mode">
         <span class="material-symbols-outlined">exercise</span>
       </button>
       <button class="bottom-tab" data-tab="stats" type="button">
         <span class="material-symbols-outlined">bar_chart</span>
-        <span>Stats</span>
+        <span data-i18n="stats">Stats</span>
       </button>
       <button class="bottom-tab" data-tab="profile" type="button">
         <span class="material-symbols-outlined">person</span>
-        <span>Profile</span>
+        <span data-i18n="profile">Profile</span>
       </button>
     </nav>
   </div>
@@ -225,15 +225,15 @@
       <form id="activityForm" class="modal-form">
         <input type="hidden" id="activityIdInput" />
         <div class="field">
-          <label for="actNameInput" class="field-label">NAME</label>
+          <label for="actNameInput" class="field-label" data-i18n="name">NAME</label>
           <input type="text" id="actNameInput" placeholder="e.g. 💪 Pull-ups, 🧘 Meditation" class="field-input" required />
         </div>
 
         <div class="field">
-          <label class="field-label">HABIT TYPE</label>
+          <label class="field-label" data-i18n="habit_type">HABIT TYPE</label>
           <div class="seg" id="typeSeg">
-            <button type="button" class="seg-btn active" data-type="numeric">📊 Numeric</button>
-            <button type="button" class="seg-btn" data-type="simple">✓ Simple</button>
+            <button type="button" class="seg-btn active" data-type="numeric" data-i18n="numeric_type">📊 Numeric</button>
+            <button type="button" class="seg-btn" data-type="simple" data-i18n="simple_type">✓ Simple</button>
           </div>
           <input type="hidden" id="actTypeInput" value="numeric" />
         </div>
@@ -242,34 +242,48 @@
         <div id="numericFields" class="flex flex-col gap-[18px]">
           <div class="flex gap-4">
             <div class="field flex-1">
-              <label for="actUnitInput" class="field-label">UNIT</label>
-              <input type="text" id="actUnitInput" placeholder="pages, reps, min" class="field-input" />
+              <label for="actUnitInput" class="field-label" data-i18n="unit_label">UNIT</label>
+              <select id="actUnitInput" class="field-input">
+                <option value="повторы">повторы</option>
+                <option value="страницы">страницы</option>
+                <option value="минуты">минуты</option>
+                <option value="раз">раз</option>
+                <option value="км">км</option>
+                <option value="кг">кг</option>
+                <option value="л">л</option>
+              </select>
             </div>
             <div class="field flex-1">
-              <label for="actGoalInput" class="field-label">DAILY GOAL</label>
+              <label for="actGoalInput" class="field-label" data-i18n="daily_goal">DAILY GOAL</label>
               <input type="number" id="actGoalInput" placeholder="0" min="0" step="any" class="field-input" />
             </div>
           </div>
           <div class="field">
-            <label class="field-label">QUICK ADD BUTTONS</label>
+            <label class="field-label" data-i18n="quick_add_buttons">QUICK ADD BUTTONS</label>
             <div class="flex gap-3">
               <input type="number" id="actQa1Input" placeholder="+5" min="0" step="any" class="field-input text-center" />
               <input type="number" id="actQa2Input" placeholder="+10" min="0" step="any" class="field-input text-center" />
               <input type="number" id="actQa3Input" placeholder="+25" min="0" step="any" class="field-input text-center" />
             </div>
-            <p class="text-label-sm font-label-sm text-on-surface-variant mt-1">Empty fields are hidden on the card.</p>
+            <p class="text-label-sm font-label-sm text-on-surface-variant mt-1" data-i18n="quick_add_sub">Empty fields are hidden on the card.</p>
           </div>
         </div>
 
         <div class="field">
-          <label class="field-label mb-1 block">COLOR</label>
+          <label class="field-label mb-1 block" data-i18n="emoji_label">EMOJI</label>
+          <div class="flex gap-2 overflow-x-auto pb-2 custom-scrollbar" id="emojiPicker"></div>
+          <input type="hidden" id="actEmojiInput" value="✨" />
+        </div>
+
+        <div class="field">
+          <label class="field-label mb-1 block" data-i18n="color_label">COLOR</label>
           <div class="color-row" id="colorPicker"></div>
           <input type="hidden" id="actColorInput" value="#0059b5" />
         </div>
         <div class="modal-actions">
-          <button type="button" class="btn-danger flex-1" id="deleteActivityBtn" hidden>DELETE</button>
-          <button type="button" class="btn-ghost flex-1" id="cancelModalBtn">CANCEL</button>
-          <button type="submit" class="btn-primary flex-1" id="saveActivityBtn">SAVE</button>
+          <button type="button" class="btn-danger flex-1" id="deleteActivityBtn" data-i18n="delete_btn" hidden>DELETE</button>
+          <button type="button" class="btn-ghost flex-1" id="cancelModalBtn" data-i18n="cancel_btn">CANCEL</button>
+          <button type="submit" class="btn-primary flex-1" id="saveActivityBtn" data-i18n="save_btn">SAVE</button>
         </div>
       </form>
     </div>
@@ -279,21 +293,21 @@
   <div id="logModal" class="modal-back hidden">
     <div class="modal">
       <div class="modal-header">
-        <h3 class="text-headline-md font-headline-md text-on-surface">Add Log</h3>
+        <h3 class="text-headline-md font-headline-md text-on-surface" data-i18n="add_log_title">Add Log</h3>
         <button type="button" class="text-3xl text-on-surface-variant hover:text-on-surface leading-none" id="closeLogModalBtn">&times;</button>
       </div>
       <form id="logForm" class="modal-form">
         <div class="field">
-          <label for="logActivitySelect" class="field-label">ACTIVITY</label>
+          <label for="logActivitySelect" class="field-label" data-i18n="activity_select">ACTIVITY</label>
           <select id="logActivitySelect" class="field-input" required></select>
         </div>
         <div class="field">
-          <label for="logAmountInput" class="field-label">AMOUNT</label>
+          <label for="logAmountInput" class="field-label" data-i18n="amount_label">AMOUNT</label>
           <input type="number" id="logAmountInput" placeholder="Enter a number..." min="0.01" step="any" class="field-input" required />
         </div>
         <div class="modal-actions">
-          <button type="button" class="btn-ghost flex-1" id="cancelLogModalBtn">CANCEL</button>
-          <button type="submit" class="btn-primary flex-1">LOG</button>
+          <button type="button" class="btn-ghost flex-1" id="cancelLogModalBtn" data-i18n="cancel_btn">CANCEL</button>
+          <button type="submit" class="btn-primary flex-1" data-i18n="log">LOG</button>
         </div>
       </form>
     </div>
@@ -303,7 +317,7 @@
   <div id="notifModal" class="modal-back hidden">
     <div class="modal">
       <div class="modal-header">
-        <h3 class="text-headline-md font-headline-md text-on-surface">Today's motivation</h3>
+        <h3 class="text-headline-md font-headline-md text-on-surface" data-i18n="motivation">Today's motivation</h3>
         <button type="button" class="text-3xl text-on-surface-variant hover:text-on-surface leading-none" id="closeNotifBtn">&times;</button>
       </div>
       <div class="flex flex-col items-center text-center gap-4 py-2">
@@ -313,7 +327,7 @@
         <p id="notifText" class="text-body-lg font-body-lg text-on-surface px-2">Today is the best day to get 1% better.</p>
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn-primary flex-1" id="notifOkBtn">Let's go 🚀</button>
+        <button type="button" class="btn-primary flex-1" id="notifOkBtn" data-i18n="lets_go">Let's go 🚀</button>
       </div>
     </div>
   </div>
@@ -324,14 +338,14 @@
       <header class="gym-header">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1;">exercise</span>
-          <h3 class="text-headline-md font-headline-md text-on-surface">Workout</h3>
+          <h3 class="text-headline-md font-headline-md text-on-surface" data-i18n="workout">Workout</h3>
         </div>
         <button type="button" class="icon-btn" id="closeGymBtn" title="Close"><span class="material-symbols-outlined">close</span></button>
       </header>
 
       <div class="gym-body custom-scrollbar">
         <div class="field">
-          <label for="gymExerciseSelect" class="field-label">EXERCISE</label>
+          <label for="gymExerciseSelect" class="field-label" data-i18n="exercise">EXERCISE</label>
           <select id="gymExerciseSelect" class="field-input">
             <option>Bench Press</option>
             <option>Barbell Squat</option>
@@ -346,28 +360,28 @@
 
         <div class="flex gap-4">
           <div class="field flex-1">
-            <label for="gymWeightInput" class="field-label">WEIGHT (KG)</label>
+            <label for="gymWeightInput" class="field-label" data-i18n="weight">WEIGHT (KG)</label>
             <input type="number" id="gymWeightInput" placeholder="0" min="0" step="any" class="field-input text-center text-headline-md" />
           </div>
           <div class="field flex-1">
-            <label for="gymRepsInput" class="field-label">REPS</label>
+            <label for="gymRepsInput" class="field-label" data-i18n="reps">REPS</label>
             <input type="number" id="gymRepsInput" placeholder="0" min="0" step="1" class="field-input text-center text-headline-md" />
           </div>
         </div>
 
         <button type="button" class="btn-ghost w-full flex items-center justify-center gap-2" id="gymAddSetBtn">
-          <span class="material-symbols-outlined text-[20px]">add</span> Add Set
+          <span class="material-symbols-outlined text-[20px]">add</span> <span data-i18n="add_set">Add Set</span>
         </button>
 
         <div>
-          <p class="field-label mb-2 block">SETS <span id="gymSetCount" class="text-primary"></span></p>
+          <p class="field-label mb-2 block"><span data-i18n="sets_label">SETS</span> <span id="gymSetCount" class="text-primary"></span></p>
           <div id="gymSetList" class="flex flex-col gap-2"></div>
         </div>
       </div>
 
       <footer class="gym-footer">
         <button type="button" class="btn-primary w-full flex items-center justify-center gap-2" id="gymFinishBtn">
-          <span class="material-symbols-outlined text-[20px]">flag</span> Finish Workout
+          <span class="material-symbols-outlined text-[20px]">flag</span> <span data-i18n="finish_workout">Finish Workout</span>
         </button>
       </footer>
     </div>
