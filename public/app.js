@@ -62,11 +62,11 @@ async function fetchJson(url, options = {}) {
       const hadUser = !!state.user;
       state.user = null;
       renderAuth();
-      if (hadUser) showToast('Сессия истекла, войдите снова', 'error');
-      throw new Error('Требуется авторизация');
+      if (hadUser) showToast('Session expired, please sign in again', 'error');
+      throw new Error('Authentication required');
     }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Ошибка сервера: ${res.status}`);
+    if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
     return data;
   } catch (err) {
     console.error('API Error:', err);
@@ -169,7 +169,7 @@ function renderAuth() {
       ? 'flex-1 py-3 text-center text-label-md font-label-md rounded-lg bg-primary text-on-primary shadow transition-all'
       : 'flex-1 py-3 text-center text-label-md font-label-md text-on-surface-variant rounded-lg transition-all';
   });
-  authSubmitBtn.textContent = authMode === 'login' ? 'ВОЙТИ В СИСТЕМУ' : 'ЗАРЕГИСТРИРОВАТЬСЯ';
+  authSubmitBtn.textContent = authMode === 'login' ? 'SIGN IN' : 'SIGN UP';
 }
 
 function updateNavUI() {
@@ -209,7 +209,7 @@ async function renderDashboardTab() {
   try {
     res = await api.getStats(todayDate, 1);
   } catch (err) {
-    showToast('Ошибка загрузки дашборда', 'error');
+    showToast('Failed to load dashboard', 'error');
     return;
   }
   const activities = res.activities || [];
@@ -232,20 +232,20 @@ async function renderDashboardTab() {
   viewContainer.appendChild(pageHeader('Hi, Hero!', 'Ready to ascend today?'));
 
   if (activities.length === 0) {
-    viewContainer.appendChild(emptyState('Привычек пока нет', 'Добавьте первую цель на вкладке Activities.'));
+    viewContainer.appendChild(emptyState('No habits yet', 'Add your first goal in the Profile tab.'));
     return;
   }
 
-  // Bento-сетка
+  // Сетка карточек (адаптивная ширина колонок ≥320px на десктопе)
   const grid = document.createElement('div');
-  grid.className = 'grid grid-cols-12 gap-gutter';
+  grid.className = 'card-grid';
 
-  // Карточка сводки (Weekly momentum)
+  // Карточка сводки (Daily Momentum)
   const summary = document.createElement('div');
-  summary.className = 'col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 relative overflow-hidden flex flex-col';
+  summary.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 relative overflow-hidden flex flex-col';
   summary.innerHTML = `
     <h3 class="text-headline-md font-headline-md mb-1">Daily Momentum</h3>
-    <p class="text-body-md font-body-md text-on-surface-variant mb-6">${habitsLeft === 0 ? 'Все цели закрыты! Ты невесом 🚀' : `Осталось целей сегодня: ${habitsLeft}`}</p>
+    <p class="text-body-md font-body-md text-on-surface-variant mb-6">${habitsLeft === 0 ? "All goals done! You're weightless 🚀" : `Goals left today: ${habitsLeft}`}</p>
     <div class="mt-auto flex items-center justify-between">
       <div>
         <p class="text-headline-xl font-headline-xl text-primary leading-none">${overallPercent}%</p>
@@ -267,7 +267,7 @@ function habitCard(act, todayDate) {
   const color = act.color || '#0059b5';
   const card = document.createElement('div');
   // h-full + flex-col + mt-auto на блоке кнопок → карточки в ряду одинаковой высоты, кнопки прижаты к низу (задача 8)
-  card.className = 'col-span-12 md:col-span-6 lg:col-span-4 h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
+  card.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
   card.addEventListener('click', () => { state.selectedActivityId = act.id; renderCurrentTab(); });
 
   const isSimple = act.type === 'simple';
@@ -287,7 +287,7 @@ function habitCard(act, todayDate) {
     : `<span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors shrink-0 ml-2">${Number(act.today_total.toFixed(1))} / ${act.daily_goal}</span>`;
   head.innerHTML = `
     <div class="flex flex-col gap-1 min-w-0">
-      <span class="text-headline-md font-headline-md leading-[1.2] break-words">${getEmoji(act.name)} ${esc(act.name)}</span>
+      <span class="text-headline-md font-headline-md leading-[1.2] break-normal">${getEmoji(act.name)} ${esc(act.name)}</span>
       <div class="flex items-center gap-1 font-semibold" style="color:${streakColor}">
         <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' ${act.streak === 0 ? 0 : 1};">local_fire_department</span>
         <span class="text-label-md font-label-md">${act.streak} Day Streak</span>
@@ -317,13 +317,13 @@ function habitCard(act, todayDate) {
     if (doneToday) {
       btn.style.background = 'rgb(var(--secondary-container))';
       btn.style.color = 'rgb(var(--on-surface))';
-      btn.title = 'Нажмите, чтобы отменить';
+      btn.title = 'Tap to undo';
       btn.classList.add('hover:opacity-90');
-      btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">check</span> Сделано сегодня';
+      btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">check</span> Done today';
       btn.addEventListener('click', (e) => resetDay(e, act, todayDate));
     } else {
       btn.classList.add('bg-on-surface', 'text-on-primary', 'hover:opacity-90');
-      btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">done</span> Сделать';
+      btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">done</span> Mark Done';
       btn.addEventListener('click', (e) => quickLog(e, act, 1, todayDate));
     }
     card.appendChild(btn);
@@ -346,7 +346,7 @@ function habitCard(act, todayDate) {
       d.className = 'py-3 px-1 rounded-xl flex items-center justify-center cursor-default';
       d.style.background = 'rgb(var(--secondary-container))';
       d.style.color = 'rgb(var(--on-surface))';
-      d.title = 'Цель достигнута';
+      d.title = 'Goal reached';
       d.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span>';
       d.addEventListener('click', (e) => e.stopPropagation());
     }
@@ -374,16 +374,16 @@ function habitCard(act, todayDate) {
     const input = document.createElement('input');
     input.type = 'number';
     input.min = '0'; input.step = 'any';
-    input.placeholder = act.unit || 'число';
+    input.placeholder = act.unit || 'number';
     input.className = 'field-input flex-1 py-2';
     input.addEventListener('click', (e) => e.stopPropagation());
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'glass-panel px-4 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95';
-    add.textContent = 'Записать';
+    add.textContent = 'Log';
     add.addEventListener('click', (e) => {
       const v = parseFloat(input.value);
-      if (!isFinite(v) || v <= 0) { e.stopPropagation(); showToast('Введите число', 'error'); return; }
+      if (!isFinite(v) || v <= 0) { e.stopPropagation(); showToast('Enter a number', 'error'); return; }
       input.value = '';
       quickLog(e, act, v, todayDate);
     });
@@ -398,7 +398,7 @@ function habitCard(act, todayDate) {
     const reset = document.createElement('button');
     reset.type = 'button';
     reset.className = 'text-label-sm font-label-sm text-on-surface-variant/70 hover:text-error transition-colors self-center mt-2';
-    reset.textContent = '↺ Сбросить сегодня';
+    reset.textContent = '↺ Reset today';
     reset.addEventListener('click', (e) => resetDay(e, act, todayDate));
     card.appendChild(reset);
   }
@@ -408,26 +408,26 @@ function habitCard(act, todayDate) {
 
 async function quickLog(e, act, val, todayDate) {
   e.stopPropagation();
-  if (!val || val <= 0) { showToast('Цель уже достигнута 🎉'); return; }
+  if (!val || val <= 0) { showToast('Goal already reached 🎉'); return; }
   try {
     await api.addLog(act.id, val, todayDate);
-    showToast(`Добавлено +${Number(val.toFixed ? val.toFixed(1) : val)} ${act.unit || ''}`);
+    showToast(`Added +${Number(val.toFixed ? val.toFixed(1) : val)} ${act.unit || ''}`);
     await renderCurrentTab();
   } catch (err) {
-    showToast('Не удалось сохранить лог', 'error');
+    showToast('Failed to save log', 'error');
   }
 }
 
 // Сброс сегодняшних записей привычки (отмена/исправление)
 async function resetDay(e, act, todayDate) {
   e.stopPropagation();
-  if (!confirm(`Сбросить сегодняшние записи «${act.name}»? Это действие нельзя отменить.`)) return;
+  if (!confirm(`Reset today's entries for "${act.name}"? This cannot be undone.`)) return;
   try {
     await api.clearDay(act.id, todayDate);
-    showToast('Сегодняшние записи сброшены');
+    showToast("Today's entries were reset");
     await renderCurrentTab();
   } catch (err) {
-    showToast('Не удалось сбросить', 'error');
+    showToast('Failed to reset', 'error');
   }
 }
 
@@ -450,13 +450,13 @@ async function renderActivityDetail(activityId) {
   try {
     resp = await api.getStats(todayDate, state.statsDays);
   } catch (err) {
-    showToast('Не удалось загрузить сведения', 'error');
+    showToast('Failed to load details', 'error');
     state.selectedActivityId = null;
     return renderCurrentTab();
   }
   const act = (resp.activities || []).find((a) => a.id === activityId);
   if (!act) {
-    showToast('Активность не найдена', 'error');
+    showToast('Activity not found', 'error');
     state.selectedActivityId = null;
     return renderCurrentTab();
   }
@@ -476,11 +476,11 @@ async function renderActivityDetail(activityId) {
   hero.innerHTML = `
     <div class="col-span-12 md:col-span-6 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col justify-center items-center text-center">
       <span class="text-headline-xl font-headline-xl text-primary leading-none">${isSimple ? doneDays : Number(total.toFixed(1))}</span>
-      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider mt-2">${isSimple ? 'ВЫПОЛНЕНО ДНЕЙ' : 'Всего ' + esc((act.unit || '').toUpperCase())}</span>
+      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider mt-2">${isSimple ? 'DAYS DONE' : 'Total ' + esc((act.unit || '').toUpperCase())}</span>
     </div>
     <div class="col-span-12 md:col-span-6 grid grid-cols-3 gap-gutter">
-      ${miniStat('Сегодня', isSimple ? (act.today_total > 0 ? '✓' : '—') : Number(act.today_total.toFixed(1)))}
-      ${isSimple ? miniStat('Дней', doneDays, color) : miniStat('Рекорд', Number(best.toFixed(1)), color)}
+      ${miniStat('Today', isSimple ? (act.today_total > 0 ? '✓' : '—') : Number(act.today_total.toFixed(1)))}
+      ${isSimple ? miniStat('Days', doneDays, color) : miniStat('Best', Number(best.toFixed(1)), color)}
       ${miniStat('Streak', act.streak + 'd')}
     </div>
   `;
@@ -491,14 +491,14 @@ async function renderActivityDetail(activityId) {
   chartSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
   const chartHead = document.createElement('div');
   chartHead.className = 'flex justify-between items-center mb-6';
-  chartHead.innerHTML = `<h3 class="text-headline-md font-headline-md">Weekly Progress</h3><span class="text-label-md font-label-md text-primary">7 дней</span>`;
+  chartHead.innerHTML = `<h3 class="text-headline-md font-headline-md">Weekly Progress</h3><span class="text-label-md font-label-md text-primary">7 days</span>`;
   chartSec.appendChild(chartHead);
 
   const last7 = series.slice(-7);
   const maxVal = isSimple ? 1 : Math.max(...last7.map((s) => s.total), act.daily_goal || 1);
   const bars = document.createElement('div');
   bars.className = 'flex items-end justify-between h-40 gap-3 pt-4';
-  const wd = ['В', 'П', 'В', 'С', 'Ч', 'П', 'С'];
+  const wd = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // index = Date.getDay() (0 = Sun)
   last7.forEach((d) => {
     const isToday = d.day === todayDate;
     const date = new Date(d.day + 'T00:00:00');
@@ -509,7 +509,7 @@ async function renderActivityDetail(activityId) {
     col.className = 'flex-1 flex flex-col items-center gap-2 group relative';
     const tip = document.createElement('div');
     tip.className = 'absolute -top-2 bg-on-surface text-on-primary text-xs font-bold rounded py-1 px-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10';
-    tip.textContent = isSimple ? (d.total > 0 ? 'выполнено' : '—') : `${Number(d.total.toFixed(1))} ${act.unit || ''}`;
+    tip.textContent = isSimple ? (d.total > 0 ? 'done' : '—') : `${Number(d.total.toFixed(1))} ${act.unit || ''}`;
     const tr = document.createElement('div');
     tr.className = 'w-full bg-surface-container-high rounded-t-xl relative h-28 overflow-hidden';
     const bf = document.createElement('div');
@@ -536,7 +536,7 @@ async function renderActivityDetail(activityId) {
   ];
   const achSec = document.createElement('section');
   achSec.className = 'mb-md';
-  achSec.innerHTML = '<h3 class="text-headline-md font-headline-md mb-md">Достижения</h3>';
+  achSec.innerHTML = '<h3 class="text-headline-md font-headline-md mb-md">Achievements</h3>';
   const achWrap = document.createElement('div');
   achWrap.className = 'grid grid-cols-2 sm:grid-cols-4 gap-gutter';
   badges.forEach((b, i) => {
@@ -561,7 +561,7 @@ async function renderActivityDetail(activityId) {
   const logList = document.createElement('div');
   logList.className = 'space-y-4';
   if (logged.length === 0) {
-    logList.innerHTML = '<p class="text-body-md font-body-md text-on-surface-variant text-center py-4">Нет записей за последнее время</p>';
+    logList.innerHTML = '<p class="text-body-md font-body-md text-on-surface-variant text-center py-4">No entries recently</p>';
   } else {
     logged.forEach((d) => {
       const p = d.day.split('-');
@@ -574,7 +574,7 @@ async function renderActivityDetail(activityId) {
           </div>
           <div>
             <p class="text-label-md font-label-md font-bold">${p[2]}.${p[1]}.${p[0]}</p>
-            <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? 'Отметка' : 'Дневная сумма'}</p>
+            <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? 'Check-in' : 'Daily total'}</p>
           </div>
         </div>
         ${isSimple
@@ -600,7 +600,7 @@ function miniStat(label, value, border) {
 // 8. ПРОФИЛЬ (настройки + управление привычками)
 // ==========================================
 async function renderProfileTab() {
-  viewContainer.appendChild(pageHeader('Профиль', 'Настройки и привычки'));
+  viewContainer.appendChild(pageHeader('Profile', 'Settings & habits'));
 
   // Карточка пользователя
   const userCard = document.createElement('div');
@@ -620,7 +620,7 @@ async function renderProfileTab() {
   const logoutBtn = document.createElement('button');
   logoutBtn.type = 'button';
   logoutBtn.className = 'btn-ghost px-4 py-2 shrink-0 flex items-center gap-2';
-  logoutBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">logout</span> Выйти';
+  logoutBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">logout</span> Sign out';
   logoutBtn.addEventListener('click', doLogout);
   userCard.appendChild(logoutBtn);
   viewContainer.appendChild(userCard);
@@ -631,11 +631,11 @@ async function renderProfileTab() {
   // Управление привычками
   const habitsHead = document.createElement('div');
   habitsHead.className = 'flex items-center justify-between gap-3 mt-md mb-md';
-  habitsHead.innerHTML = '<h3 class="text-headline-md font-headline-md">Мои привычки</h3>';
+  habitsHead.innerHTML = '<h3 class="text-headline-md font-headline-md">My Habits</h3>';
   const addBtnNode = document.createElement('button');
   addBtnNode.type = 'button';
   addBtnNode.className = 'btn-primary flex items-center gap-2 px-5';
-  addBtnNode.innerHTML = '<span class="material-symbols-outlined text-[20px]">add</span> Добавить';
+  addBtnNode.innerHTML = '<span class="material-symbols-outlined text-[20px]">add</span> Add';
   addBtnNode.addEventListener('click', () => openActivityModal(null));
   habitsHead.appendChild(addBtnNode);
   viewContainer.appendChild(habitsHead);
@@ -644,35 +644,35 @@ async function renderProfileTab() {
   try {
     res = await api.getActivities();
   } catch (err) {
-    showToast('Ошибка загрузки привычек', 'error');
+    showToast('Failed to load habits', 'error');
     return;
   }
   const activities = res.activities || [];
   state.activities = activities;
 
   if (activities.length === 0) {
-    viewContainer.appendChild(emptyState('Список пуст', 'Добавьте первую привычку прямо сейчас.'));
+    viewContainer.appendChild(emptyState('No habits', 'Add your first habit now.'));
     return;
   }
 
   const grid = document.createElement('div');
-  grid.className = 'grid grid-cols-12 gap-gutter';
+  grid.className = 'card-grid';
   activities.forEach((act) => {
     const item = document.createElement('div');
-    item.className = 'col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex items-center justify-between gap-3';
+    item.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex items-center justify-between gap-3';
     const left = document.createElement('div');
     left.className = 'min-w-0';
     left.innerHTML = `
-      <h3 class="text-headline-md font-headline-md leading-[1.2] break-words">${getEmoji(act.name)} ${esc(act.name)}</h3>
+      <h3 class="text-headline-md font-headline-md leading-[1.2] break-normal">${getEmoji(act.name)} ${esc(act.name)}</h3>
       <div class="text-label-sm font-label-sm text-on-surface-variant mt-1 flex items-center gap-2">
         <span class="inline-block w-3 h-3 rounded-full" style="background:${act.color || '#0059b5'}"></span>
-        Цель: ${act.daily_goal} ${esc(act.unit || '')}
+        Goal: ${act.daily_goal} ${esc(act.unit || '')}
       </div>
     `;
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'btn-ghost px-4 py-2 shrink-0';
-    edit.textContent = 'Изменить';
+    edit.textContent = 'Edit';
     edit.addEventListener('click', () => openActivityModal(act));
     item.appendChild(left);
     item.appendChild(edit);
@@ -685,7 +685,7 @@ async function renderProfileTab() {
 // 8.5 КАЛЕНДАРЬ (сетка месяца с отметками выполнения)
 // ==========================================
 async function renderCalendarTab() {
-  viewContainer.appendChild(pageHeader('Календарь', 'Дни с выполненными привычками'));
+  viewContainer.appendChild(pageHeader('Calendar', 'Days with completed habits'));
 
   const now = new Date();
   const year = now.getFullYear();
@@ -698,7 +698,7 @@ async function renderCalendarTab() {
   try {
     resp = await api.getStats(todayDate, daysSoFar);
   } catch (err) {
-    showToast('Ошибка загрузки календаря', 'error');
+    showToast('Failed to load calendar', 'error');
     return;
   }
   const activities = resp.activities || [];
@@ -714,7 +714,7 @@ async function renderCalendarTab() {
     });
   });
 
-  const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const wrap = document.createElement('div');
   wrap.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
   wrap.innerHTML = `<h3 class="text-headline-md font-headline-md mb-md text-center">${monthNames[month]} ${year}</h3>`;
@@ -722,7 +722,7 @@ async function renderCalendarTab() {
   // Заголовки дней недели (Пн..Вс)
   const grid = document.createElement('div');
   grid.className = 'cal-grid';
-  ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].forEach((d) => {
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((d) => {
     const dow = document.createElement('div');
     dow.className = 'cal-dow';
     dow.textContent = d;
@@ -766,7 +766,7 @@ async function renderCalendarTab() {
   // Легенда
   const legend = document.createElement('p');
   legend.className = 'text-label-sm font-label-sm text-on-surface-variant text-center mt-md';
-  legend.textContent = 'Цветные точки под датой — выполненные в этот день привычки.';
+  legend.textContent = 'Colored dots under a date mark habits completed that day.';
   viewContainer.appendChild(legend);
 }
 
@@ -784,22 +784,22 @@ async function renderStatsTab() {
     b.className = active
       ? 'px-4 py-2 rounded-lg bg-primary text-on-primary text-label-md font-label-md transition-all'
       : 'px-4 py-2 rounded-lg text-on-surface-variant text-label-md font-label-md transition-all';
-    b.textContent = `${d} дней`;
+    b.textContent = `${d} days`;
     b.addEventListener('click', () => { if (state.statsPeriod !== d) { state.statsPeriod = d; renderCurrentTab(); } });
     toggle.appendChild(b);
   });
-  viewContainer.appendChild(pageHeader('Статистика', 'Динамика по привычкам', toggle));
+  viewContainer.appendChild(pageHeader('Stats', 'Habit dynamics', toggle));
 
   let resp;
   try {
     resp = await api.getStats(localDay(), state.statsPeriod);
   } catch (err) {
-    showToast('Ошибка загрузки статистики', 'error');
+    showToast('Failed to load stats', 'error');
     return;
   }
   const activities = resp.activities || [];
   if (activities.length === 0) {
-    viewContainer.appendChild(emptyState('Нет данных', 'Залогируйте привычки, чтобы увидеть аналитику.'));
+    viewContainer.appendChild(emptyState('No data', 'Log habits to see analytics.'));
     return;
   }
   const grid = document.createElement('div');
@@ -812,14 +812,14 @@ async function renderStatsTab() {
     // simple: сумма = число выполненных дней; numeric: сумма значений
     const sum = isSimple ? doneDays : series.reduce((a, c) => a + c.total, 0);
     const sumLabel = isSimple
-      ? `Выполнено за ${state.statsPeriod} дн.: ${doneDays} ${doneDays === 1 ? 'день' : 'дн.'}`
-      : `Сумма за ${state.statsPeriod} дн.: ${Number(sum.toFixed(1))} ${esc(act.unit || '')}`;
+      ? `Completed in ${state.statsPeriod} days: ${doneDays} ${doneDays === 1 ? 'day' : 'days'}`
+      : `Total over ${state.statsPeriod} days: ${Number(sum.toFixed(1))} ${esc(act.unit || '')}`;
     const card = document.createElement('div');
     card.className = 'col-span-12 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
     card.innerHTML = `
       <div class="flex justify-between items-center mb-md border-b border-outline-variant/30 pb-3">
         <div class="min-w-0">
-          <h3 class="text-headline-md font-headline-md leading-[1.2] break-words">${getEmoji(act.name)} ${esc(act.name)}</h3>
+          <h3 class="text-headline-md font-headline-md leading-[1.2] break-normal">${getEmoji(act.name)} ${esc(act.name)}</h3>
           <span class="text-label-sm font-label-sm text-on-surface-variant">${sumLabel}</span>
         </div>
         <div class="text-right shrink-0 ml-2 text-secondary font-semibold flex items-center gap-1">
@@ -851,7 +851,7 @@ async function renderStatsTab() {
       rect.style.fill = done ? 'rgb(var(--secondary-container))' : (d.total > 0 ? color : 'rgb(var(--surface-container-high))');
       const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
       t.textContent = isSimple
-        ? `${d.day}: ${d.total > 0 ? 'выполнено' : '—'}`
+        ? `${d.day}: ${d.total > 0 ? 'done' : '—'}`
         : `${d.day}: ${Number(d.total.toFixed(1))} / ${act.daily_goal} ${act.unit || ''}`;
       rect.appendChild(t);
       svg.appendChild(rect);
@@ -921,7 +921,7 @@ function initColorPicker() {
 
 function openActivityModal(activity = null) {
   if (activity) {
-    modalTitle.textContent = 'Редактировать привычку';
+    modalTitle.textContent = 'Edit Habit';
     activityIdInput.value = activity.id;
     actNameInput.value = activity.name;
     actUnitInput.value = activity.unit || '';
@@ -934,7 +934,7 @@ function openActivityModal(activity = null) {
     setActivityType(activity.type || 'numeric');
     deleteActivityBtn.hidden = false;
   } else {
-    modalTitle.textContent = 'Новая привычка';
+    modalTitle.textContent = 'New Habit';
     activityIdInput.value = '';
     activityForm.reset();
     state.selectedColor = '#0059b5';
@@ -951,7 +951,7 @@ function closeActivityModal() { activityModal.classList.add('hidden'); }
 function openLogModal() {
   logActivitySelect.textContent = '';
   if (!state.activities || state.activities.length === 0) {
-    showToast('Сначала создайте привычку', 'error');
+    showToast('Create a habit first', 'error');
     return;
   }
   state.activities.forEach((act) => {
@@ -1004,13 +1004,13 @@ function themeToggleRow() {
   row.className = 'glass-panel rounded-2xl p-4 flex items-center justify-between shadow-sm mb-md';
   const label = document.createElement('div');
   label.innerHTML = `
-    <p class="text-label-md font-label-md font-bold">Тёмная тема</p>
-    <p class="text-label-sm font-label-sm text-on-surface-variant">Светлое / тёмное оформление</p>
+    <p class="text-label-md font-label-md font-bold">Dark theme</p>
+    <p class="text-label-sm font-label-sm text-on-surface-variant">Light / dark appearance</p>
   `;
   const sw = document.createElement('button');
   sw.type = 'button';
   sw.className = 'theme-switch';
-  sw.setAttribute('aria-label', 'Сменить тему');
+  sw.setAttribute('aria-label', 'Toggle theme');
   const knob = document.createElement('span');
   knob.className = 'knob';
   knob.innerHTML = `<span class="material-symbols-outlined">${currentTheme() === 'dark' ? 'dark_mode' : 'light_mode'}</span>`;
@@ -1069,7 +1069,7 @@ function showAuthErrorFromUrl() {
   try {
     const u = new URL(window.location.href);
     if (u.searchParams.get('auth_error')) {
-      showToast('Не удалось войти через Google, попробуйте снова', 'error');
+      showToast('Google sign-in failed, please try again', 'error');
       u.searchParams.delete('auth_error');
       window.history.replaceState({}, '', u.pathname + u.search);
     }
@@ -1080,13 +1080,13 @@ function showAuthErrorFromUrl() {
 // 10.7 УВЕДОМЛЕНИЯ (Колокольчик — мотивация на сегодня)
 // ==========================================
 const MOTIVATION = [
-  'Сегодня — лучший день, чтобы стать на 1% лучше. 💪',
-  'Маленький шаг сегодня — большой результат через год. 🚀',
-  'Дисциплина — это мост между целью и достижением.',
-  'Не пропусти сегодня: серия (streak) держится на ежедневности. 🔥',
-  'Ты не обязан быть идеальным. Просто будь последовательным.',
-  'Каждая отметка приближает тебя к лучшей версии себя. ✨',
-  'Мотивация запускает, привычка удерживает. Действуй!',
+  'Today is the best day to get 1% better. 💪',
+  'A small step today is a big result a year from now. 🚀',
+  'Discipline is the bridge between goals and achievement.',
+  "Don't skip today: your streak lives on consistency. 🔥",
+  "You don't have to be perfect. Just be consistent.",
+  'Every check-in brings you closer to your best self. ✨',
+  'Motivation gets you started, habit keeps you going. Go!',
 ];
 
 const notifModal = document.getElementById('notifModal');
@@ -1126,7 +1126,7 @@ function renderGymSets() {
   if (state.gymSets.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'text-label-sm font-label-sm text-on-surface-variant text-center py-3';
-    empty.textContent = 'Пока нет подходов. Добавьте первый.';
+    empty.textContent = 'No sets yet. Add your first one.';
     gymSetList.appendChild(empty);
     return;
   }
@@ -1138,7 +1138,7 @@ function renderGymSets() {
         <span class="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-label-sm font-bold shrink-0">${i + 1}</span>
         <div class="min-w-0">
           <p class="text-label-md font-label-md font-bold truncate">${esc(s.exercise)}</p>
-          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} кг × ${s.reps}</p>
+          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} kg × ${s.reps}</p>
         </div>
       </div>
     `;
@@ -1157,7 +1157,7 @@ function addGymSet() {
   const weight = parseFloat(gymWeightInput.value);
   const reps = parseInt(gymRepsInput.value);
   if (!isFinite(weight) || weight < 0 || !isFinite(reps) || reps <= 0) {
-    showToast('Введите вес и повторения', 'error');
+    showToast('Enter weight and reps', 'error');
     return;
   }
   state.gymSets.push({ exercise, weight: Number(weight), reps });
@@ -1170,7 +1170,7 @@ function finishGym() {
   const count = state.gymSets.length;
   // UI-режим без БД: пока просто закрываем и показываем сводку
   closeGymModal();
-  showToast(count > 0 ? `Тренировка завершена: ${count} подх. 💪` : 'Тренировка завершена');
+  showToast(count > 0 ? `Workout finished: ${count} sets 💪` : 'Workout finished');
   state.gymSets = [];
 }
 
@@ -1211,18 +1211,18 @@ document.getElementById('authForm').addEventListener('submit', async (e) => {
   const authError = document.getElementById('authError');
   authError.textContent = '';
   if (turnstileEnabled && !turnstileToken) {
-    authError.textContent = 'Подтвердите, что вы не робот';
+    authError.textContent = 'Please confirm you are not a robot';
     return;
   }
   try {
     const res = authMode === 'login'
       ? await api.login(email, password, turnstileToken)
       : await api.register(email, password, turnstileToken);
-    showToast(authMode === 'login' ? 'С возвращением!' : 'Аккаунт создан!');
+    showToast(authMode === 'login' ? 'Welcome back!' : 'Account created!');
     if (res && res.user) enterApp(res.user);
   } catch (err) {
     resetTurnstile();
-    authError.textContent = err.message || 'Ошибка входа/регистрации';
+    authError.textContent = err.message || 'Sign in / sign up error';
   }
 });
 
@@ -1271,15 +1271,15 @@ on('notifOkBtn', 'click', closeNotifModal);
 
 // Выход
 async function doLogout() {
-  if (!confirm('Выйти из аккаунта?')) return;
+  if (!confirm('Sign out of your account?')) return;
   try {
     await api.logout();
     state.user = null;
     state.selectedActivityId = null;
-    showToast('Сессия завершена');
+    showToast('Signed out');
     renderAuth();
   } catch (err) {
-    showToast('Не удалось выйти', 'error');
+    showToast('Failed to sign out', 'error');
   }
 }
 document.getElementById('logoutBtn').addEventListener('click', doLogout);
@@ -1298,11 +1298,11 @@ logForm.addEventListener('submit', async (e) => {
   if (isNaN(actId) || isNaN(amount) || amount <= 0) return;
   try {
     await api.addLog(actId, amount, localDay());
-    showToast('Запись добавлена!');
+    showToast('Log added!');
     closeLogModal();
     await renderCurrentTab();
   } catch (err) {
-    showToast('Не удалось сохранить лог', 'error');
+    showToast('Failed to save log', 'error');
   }
 });
 
@@ -1327,15 +1327,15 @@ activityForm.addEventListener('submit', async (e) => {
   try {
     if (id) {
       await api.updateActivity(id, data);
-      showToast('Привычка обновлена!');
+      showToast('Habit updated!');
     } else {
       await api.createActivity(data);
-      showToast('Привычка добавлена!');
+      showToast('Habit added!');
     }
     closeActivityModal();
     await renderCurrentTab();
   } catch (err) {
-    showToast('Не удалось сохранить', 'error');
+    showToast('Failed to save', 'error');
   }
 });
 
@@ -1343,15 +1343,15 @@ activityForm.addEventListener('submit', async (e) => {
 deleteActivityBtn.addEventListener('click', async () => {
   const id = activityIdInput.value;
   if (!id) return;
-  if (!confirm('Удалить эту привычку безвозвратно?')) return;
+  if (!confirm('Delete this habit permanently?')) return;
   try {
     await api.deleteActivity(id);
-    showToast('Привычка удалена', 'error');
+    showToast('Habit deleted', 'error');
     closeActivityModal();
     if (state.selectedActivityId === parseInt(id)) state.selectedActivityId = null;
     await renderCurrentTab();
   } catch (err) {
-    showToast('Не удалось удалить', 'error');
+    showToast('Failed to delete', 'error');
   }
 });
 

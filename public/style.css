@@ -110,6 +110,18 @@ body,
   padding: 20px 16px;
 }
 
+/* Сетка карточек: моб. — одна колонка; десктоп — колонки не уже 320px,
+   чтобы карточки были широкими и слова не рвались посередине (задача 11). */
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+@media (min-width: 768px) {
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
+
 /* Верхняя панель (только смартфоны): логотип + колокольчик */
 .app-topbar {
   position: sticky;
@@ -201,7 +213,7 @@ body,
     padding-left: 240px;
     padding-bottom: 0;
   }
-  .content { padding: 32px; }
+  .content { max-width: 1100px; padding: 32px; }
 }
 
 /* ====================== САЙДБАР ====================== */
