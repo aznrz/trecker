@@ -961,6 +961,7 @@ async function renderStatsTab() {
         valText.setAttribute('text-anchor', 'middle');
         valText.setAttribute('font-size', '10px');
         valText.setAttribute('font-weight', 'bold');
+        valText.setAttribute('fill', done ? 'rgb(var(--secondary))' : color);
         valText.style.fill = done ? 'rgb(var(--secondary))' : color;
         svg.appendChild(valText);
       }
