@@ -13,8 +13,9 @@ const state = {
   selectedActivityId: null,
   statsDays: 30,
   statsPeriod: 7,
+  statsMode: 'habits', // 'habits' | 'gym' — режим вкладки Stats
   selectedColor: '#0059b5',
-  gymSets: [], // подходы текущей тренировки (Gym Mode, без БД)
+  gymSets: [], // подходы текущей тренировки (Gym Mode)
 };
 
 // Палитра, читаемая на светлом фоне
@@ -91,6 +92,10 @@ const api = {
   clearDay: (activityId, day) =>
     fetchJson('/api/logs/clear', { method: 'POST', body: JSON.stringify({ activity_id: activityId, day }) }),
   getStats: (day, days) => fetchJson(`/api/stats?today=${day}&days=${days}`),
+  saveWorkout: (day, sets) => fetchJson('/api/workouts', { method: 'POST', body: JSON.stringify({ day, sets }) }),
+  getWorkoutStats: (day) => fetchJson(`/api/workouts/stats?today=${day}`),
+  getLogs: (activityId) => fetchJson(`/api/activities/${activityId}/logs`),
+  deleteLog: (id) => fetchJson(`/api/logs/${id}`, { method: 'DELETE' }),
 };
 
 // ==========================================
@@ -519,8 +524,8 @@ async function renderActivityDetail(activityId) {
     bf.style.boxShadow = done ? '0 0 10px rgb(var(--secondary-container) / 0.45)' : `0 0 10px ${color}55`;
     tr.appendChild(bf);
     const lab = document.createElement('span');
-    lab.className = `text-label-sm font-label-sm ${isToday ? 'font-bold text-primary' : 'text-on-surface-variant/60'}`;
-    lab.textContent = wd[date.getDay()];
+    lab.className = `text-label-sm font-label-sm ${isToday ? 'font-bold text-primary' : 'text-on-surface-variant/60'} text-center flex flex-col items-center`;
+    lab.innerHTML = `<span>${wd[date.getDay()]}</span><span class="text-[10px] opacity-70 font-normal mt-0.5">${date.getDate()}</span>`;
     col.appendChild(tip); col.appendChild(tr); col.appendChild(lab);
     bars.appendChild(col);
   });
@@ -528,11 +533,12 @@ async function renderActivityDetail(activityId) {
   viewContainer.appendChild(chartSec);
 
   // Достижения
+  const goldUnlocked = act.daily_goal > 0 ? (total >= 100 || total >= 10 * act.daily_goal) : (total >= 100);
   const badges = [
-    { title: 'First Step', icon: 'military_tech', unlocked: total > 0 },
-    { title: '14d Streak', icon: 'local_fire_department', unlocked: act.streak >= 14 },
-    { title: '100 Club', icon: 'emoji_events', unlocked: total >= 100 },
-    { title: 'Elite', icon: 'workspace_premium', unlocked: total >= 500 },
+    { title: 'Bronze: First Step', icon: 'military_tech', unlocked: total > 0 },
+    { title: 'Silver: Consistency', icon: 'local_fire_department', unlocked: act.streak >= 3 },
+    { title: 'Gold: Century', icon: 'emoji_events', unlocked: goldUnlocked },
+    { title: 'Platinum: Elite', icon: 'workspace_premium', unlocked: total >= 500 },
   ];
   const achSec = document.createElement('section');
   achSec.className = 'mb-md';
@@ -546,7 +552,7 @@ async function renderActivityDetail(activityId) {
       <div class="w-14 h-14 rounded-full ${b.unlocked ? 'bg-secondary/10 animate-float' : 'bg-surface-container-high'} flex items-center justify-center mb-2" style="animation-delay:${i * 0.6}s">
         <span class="material-symbols-outlined ${b.unlocked ? 'text-secondary' : 'text-outline'} text-3xl">${b.unlocked ? b.icon : 'lock'}</span>
       </div>
-      <span class="text-label-sm font-label-sm font-bold">${b.title}</span>
+      <span class="text-label-sm font-label-sm font-bold text-center">${b.title}</span>
     `;
     achWrap.appendChild(c);
   });
@@ -554,38 +560,100 @@ async function renderActivityDetail(activityId) {
   viewContainer.appendChild(achSec);
 
   // Последние логи
-  const logged = series.filter((s) => s.total > 0).reverse();
   const logSec = document.createElement('section');
-  logSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
+  logSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
   logSec.innerHTML = '<h3 class="text-headline-md font-headline-md mb-6">Recent Activity</h3>';
   const logList = document.createElement('div');
   logList.className = 'space-y-4';
-  if (logged.length === 0) {
-    logList.innerHTML = '<p class="text-body-md font-body-md text-on-surface-variant text-center py-4">No entries recently</p>';
-  } else {
-    logged.forEach((d) => {
-      const p = d.day.split('-');
-      const item = document.createElement('div');
-      item.className = 'flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20';
-      item.innerHTML = `
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-            <span class="material-symbols-outlined">event_available</span>
-          </div>
-          <div>
-            <p class="text-label-md font-label-md font-bold">${p[2]}.${p[1]}.${p[0]}</p>
-            <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? 'Check-in' : 'Daily total'}</p>
-          </div>
-        </div>
-        ${isSimple
-          ? '<span class="material-symbols-outlined text-3xl" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>'
-          : `<p class="text-headline-md font-headline-md text-primary">${Number(d.total.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>`}
-      `;
-      logList.appendChild(item);
-    });
-  }
+  logList.innerHTML = '<p class="text-body-md font-body-md text-on-surface-variant text-center py-4">Loading logs...</p>';
   logSec.appendChild(logList);
   viewContainer.appendChild(logSec);
+
+  // Асинхронно подгружаем индивидуальные записи
+  api.getLogs(activityId).then((data) => {
+    const logs = data.logs || [];
+    logList.textContent = '';
+    if (logs.length === 0) {
+      logList.innerHTML = '<p class="text-body-md font-body-md text-on-surface-variant text-center py-4">No entries recently</p>';
+      return;
+    }
+    logs.forEach((log) => {
+      let timeStr = '';
+      try {
+        if (log.logged_at) {
+          const dObj = new Date(log.logged_at);
+          timeStr = dObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }
+      } catch (e) {}
+
+      const p = log.day.split('-');
+      const dateFormatted = `${p[2]}.${p[1]}.${p[0]}`;
+
+      const item = document.createElement('div');
+      item.className = 'flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20 hover:bg-surface-container transition-colors';
+      
+      const leftSide = document.createElement('div');
+      leftSide.className = 'flex items-center gap-4 min-w-0';
+      leftSide.innerHTML = `
+        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+          <span class="material-symbols-outlined">event_available</span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-label-md font-label-md font-bold truncate">${dateFormatted} <span class="text-xs font-normal text-on-surface-variant/60 ml-1">${timeStr}</span></p>
+          <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? 'Check-in' : 'Amount logged'}</p>
+        </div>
+      `;
+      item.appendChild(leftSide);
+
+      const rightSide = document.createElement('div');
+      rightSide.className = 'flex items-center gap-3 shrink-0';
+
+      if (isSimple) {
+        rightSide.innerHTML += '<span class="material-symbols-outlined text-3xl" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>';
+      } else {
+        rightSide.innerHTML += `<p class="text-headline-md font-headline-md text-primary">${Number(log.amount.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>`;
+      }
+
+      // Кнопка удаления
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'w-9 h-9 rounded-xl flex items-center justify-center text-on-surface-variant/70 hover:text-error hover:bg-error/10 active:scale-90 transition-all';
+      delBtn.innerHTML = '<span class="material-symbols-outlined text-xl">delete</span>';
+      delBtn.title = 'Delete entry';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this entry?')) return;
+        try {
+          await api.deleteLog(log.id);
+          showToast('Entry deleted');
+          await renderCurrentTab();
+        } catch (err) {
+          showToast('Failed to delete entry', 'error');
+        }
+      });
+      rightSide.appendChild(delBtn);
+
+      item.appendChild(rightSide);
+      item.addEventListener('click', (e) => e.stopPropagation()); // предотвращаем переход при клике
+      logList.appendChild(item);
+    });
+  }).catch((err) => {
+    logList.innerHTML = '<p class="text-body-md font-body-md text-error text-center py-4">Failed to load logs</p>';
+  });
+
+  // Добавляем FAB (плавающую кнопку +)
+  const fab = document.createElement('button');
+  fab.type = 'button';
+  fab.className = 'fixed bottom-24 right-6 md:bottom-8 md:right-8 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl hover:scale-110 active:scale-95 transition-all z-40';
+  fab.style.background = `linear-gradient(135deg, ${color}, rgb(var(--tertiary)))`;
+  fab.style.boxShadow = `0 10px 25px ${color}66`;
+  fab.innerHTML = '<span class="material-symbols-outlined text-[28px]">add</span>';
+  fab.title = 'Add entry';
+  fab.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openLogModal();
+  });
+  viewContainer.appendChild(fab);
 }
 
 function miniStat(label, value, border) {
@@ -773,8 +841,31 @@ async function renderCalendarTab() {
 // ==========================================
 // 9. STATS
 // ==========================================
+// Сегмент Habits / Gym для вкладки Stats
+function statsModeSeg() {
+  const seg = document.createElement('div');
+  seg.className = 'seg mb-md';
+  [['habits', 'Habits'], ['gym', 'Gym']].forEach(([m, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seg-btn' + (state.statsMode === m ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => { if (state.statsMode !== m) { state.statsMode = m; renderCurrentTab(); } });
+    seg.appendChild(b);
+  });
+  return seg;
+}
+
 async function renderStatsTab() {
-  // Переключатель периода 7 / 30 дней
+  // Режим Gym — собственный дашборд аналитики тренировок
+  if (state.statsMode === 'gym') {
+    viewContainer.appendChild(pageHeader('Stats', 'Gym analytics'));
+    viewContainer.appendChild(statsModeSeg());
+    await renderGymStats();
+    return;
+  }
+
+  // Режим Habits: переключатель периода 7 / 30 дней
   const toggle = document.createElement('div');
   toggle.className = 'flex bg-surface-container rounded-xl p-1 border border-outline-variant/40';
   [7, 30].forEach((d) => {
@@ -789,6 +880,7 @@ async function renderStatsTab() {
     toggle.appendChild(b);
   });
   viewContainer.appendChild(pageHeader('Stats', 'Habit dynamics', toggle));
+  viewContainer.appendChild(statsModeSeg());
 
   let resp;
   try {
@@ -829,21 +921,21 @@ async function renderStatsTab() {
       </div>
     `;
     // SVG-график (для simple — бинарные столбцы: выполнено/нет)
-    const w = 460, hgt = 70;
+    const w = 460, hgt = 95, chartH = 68;
     const maxVal = isSimple ? 1 : Math.max(...series.map((s) => s.total), act.daily_goal || 1);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`);
-    svg.setAttribute('class', 'w-full h-16 mt-3');
+    svg.setAttribute('class', 'w-full h-20 mt-3');
     const gap = series.length > 10 ? 3 : 8;
     const bw = (w - gap * (series.length - 1)) / series.length;
     series.forEach((d, i) => {
       const val = isSimple ? (d.total > 0 ? 1 : 0) : d.total;
-      let bh = maxVal > 0 ? (val / maxVal) * hgt : 0;
+      let bh = maxVal > 0 ? (val / maxVal) * chartH : 0;
       if (val > 0 && bh < 5) bh = 5;
       const done = !isSimple && act.daily_goal > 0 && d.total >= act.daily_goal;
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', (i * (bw + gap)).toString());
-      rect.setAttribute('y', (hgt - bh).toString());
+      rect.setAttribute('y', (chartH - bh).toString());
       rect.setAttribute('width', bw.toString());
       rect.setAttribute('height', bh.toString());
       rect.setAttribute('rx', '4');
@@ -855,9 +947,90 @@ async function renderStatsTab() {
         : `${d.day}: ${Number(d.total.toFixed(1))} / ${act.daily_goal} ${act.unit || ''}`;
       rect.appendChild(t);
       svg.appendChild(rect);
+
+      // Рисуем подпись даты под каждым столбцом (для 7 дней — все, для 30 дней — с шагом 5)
+      const showLabel = (series.length <= 7) || (i % 5 === 0) || (i === series.length - 1);
+      if (showLabel) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        const dateObj = new Date(d.day + 'T00:00:00');
+        const dayStr = String(dateObj.getDate()).padStart(2, '0');
+        const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+        text.textContent = `${dayStr}.${monthStr}`;
+        text.setAttribute('x', (i * (bw + gap) + bw / 2).toString());
+        text.setAttribute('y', '86');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '10px');
+        text.setAttribute('font-weight', '600');
+        text.style.fill = 'rgb(var(--on-surface-variant))';
+        text.style.opacity = '0.6';
+        svg.appendChild(text);
+      }
     });
     card.appendChild(svg);
     grid.appendChild(card);
+  });
+  viewContainer.appendChild(grid);
+}
+
+// ==========================================
+// 9.5 GYM ANALYTICS (дашборд тренировок)
+// ==========================================
+async function renderGymStats() {
+  let resp;
+  try {
+    resp = await api.getWorkoutStats(localDay());
+  } catch (err) {
+    showToast('Failed to load gym stats', 'error');
+    return;
+  }
+  const exercises = resp.exercises || [];
+  if (exercises.length === 0) {
+    viewContainer.appendChild(emptyState('No workouts yet', 'Finish a workout in Gym Mode to see analytics.'));
+    return;
+  }
+
+  const t = resp.tonnage || { d7: 0, d14: 0, d30: 0 };
+  const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
+
+  // Карточки тоннажа 7 / 14 / 30 дней (неон-свечение из тёмной темы — автоматически)
+  const tonnageGrid = document.createElement('div');
+  tonnageGrid.className = 'card-grid mb-md';
+  [['7 days', t.d7], ['14 days', t.d14], ['30 days', t.d30]].forEach(([label, val]) => {
+    const c = document.createElement('div');
+    c.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col items-center justify-center text-center';
+    c.innerHTML = `
+      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">Total Tonnage · ${label}</span>
+      <span class="text-headline-xl font-headline-xl text-primary leading-none mt-2">${fmt(val)}</span>
+      <span class="text-label-sm font-label-sm text-on-surface-variant mt-1">kg lifted</span>
+    `;
+    tonnageGrid.appendChild(c);
+  });
+  viewContainer.appendChild(tonnageGrid);
+
+  // Топ-3 упражнения по объёму (Volume / Max weight / Est 1RM)
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-md';
+  head.textContent = 'Top 3 exercises by volume';
+  viewContainer.appendChild(head);
+
+  const grid = document.createElement('div');
+  grid.className = 'card-grid';
+  (resp.top || []).forEach((ex, i) => {
+    const c = document.createElement('div');
+    c.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md';
+    c.innerHTML = `
+      <div class="flex items-center gap-3">
+        <span class="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-label-md font-bold shrink-0">${i + 1}</span>
+        <h4 class="text-headline-md font-headline-md leading-[1.2] break-normal min-w-0">${esc(ex.name)}</h4>
+      </div>
+      <div class="grid grid-cols-3 gap-gutter mt-auto">
+        ${miniStat('Volume', fmt(ex.volume) + ' kg')}
+        ${miniStat('Max', fmt(ex.maxWeight) + ' kg')}
+        ${miniStat('Est 1RM', fmt(ex.est1rm) + ' kg')}
+      </div>
+      <p class="text-label-sm font-label-sm text-on-surface-variant text-center">${ex.sets} sets · ${fmt(ex.reps)} reps total</p>
+    `;
+    grid.appendChild(c);
   });
   viewContainer.appendChild(grid);
 }
@@ -1166,12 +1339,24 @@ function addGymSet() {
   gymRepsInput.focus();
 }
 
-function finishGym() {
-  const count = state.gymSets.length;
-  // UI-режим без БД: пока просто закрываем и показываем сводку
-  closeGymModal();
-  showToast(count > 0 ? `Workout finished: ${count} sets 💪` : 'Workout finished');
-  state.gymSets = [];
+async function finishGym() {
+  const sets = state.gymSets.slice();
+  if (sets.length === 0) {
+    showToast('Add at least one set to finish the workout', 'error');
+    return;
+  }
+  try {
+    const res = await api.saveWorkout(localDay(), sets);
+    closeGymModal();
+    state.gymSets = [];
+    showToast(`Workout saved: ${res.count} sets 💪`);
+    // Если открыта вкладка Stats в режиме Gym — обновим аналитику
+    if (state.activeTab === 'stats' && state.statsMode === 'gym' && !state.selectedActivityId) {
+      renderCurrentTab();
+    }
+  } catch (err) {
+    showToast('Failed to save workout', 'error');
+  }
 }
 
 // ==========================================

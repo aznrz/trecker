@@ -64,6 +64,10 @@ async function handleApi(request, env, url) {
     if (method === "DELETE") return deleteActivity(env, uid, id);
   }
 
+  const actLogsMatch = path.match(/^\/activities\/(\d+)\/logs$/);
+  if (actLogsMatch && method === "GET") return getActivityLogs(env, uid, +actLogsMatch[1]);
+
+
   if (path === "/logs" && method === "POST") {
     if (!(await rateOk(env, "api", request, 120, 60))) return json({ error: "Слишком часто, подождите немного" }, 429);
     return createLog(request, env, uid);
@@ -73,6 +77,13 @@ async function handleApi(request, env, url) {
   if (logMatch && method === "DELETE") return deleteLog(env, uid, +logMatch[1]);
 
   if (path === "/stats" && method === "GET") return stats(env, uid, url);
+
+  // Gym Mode: сохранение тренировки и агрегированная аналитика
+  if (path === "/workouts" && method === "POST") {
+    if (!(await rateOk(env, "api", request, 120, 60))) return json({ error: "Слишком часто, подождите немного" }, 429);
+    return saveWorkout(request, env, uid);
+  }
+  if (path === "/workouts/stats" && method === "GET") return workoutStats(env, uid, url);
 
   return json({ error: "not found" }, 404);
 }
@@ -326,6 +337,13 @@ async function deleteActivity(env, uid, id) {
   return json({ ok: true });
 }
 
+async function getActivityLogs(env, uid, activityId) {
+  const r = await env.DB.prepare(
+    "SELECT id, amount, day, logged_at FROM logs WHERE user_id=? AND activity_id=? ORDER BY logged_at DESC LIMIT 50"
+  ).bind(uid, activityId).all();
+  return json({ logs: r.results });
+}
+
 // ---------- logs ----------
 
 async function createLog(request, env, uid) {
@@ -410,6 +428,75 @@ async function stats(env, uid, url) {
   });
 
   return json({ today, days, activities });
+}
+
+// ---------- workouts (Gym Mode) ----------
+
+// Сохранение тренировки: upsert упражнений + запись подходов.
+async function saveWorkout(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
+  const sets = Array.isArray(b.sets) ? b.sets.slice(0, 100) : [];
+  const now = new Date().toISOString();
+  let count = 0;
+  for (const s of sets) {
+    const name = (s && s.exercise ? String(s.exercise) : "").trim();
+    const weight = Number(s && s.weight);
+    const reps = Math.trunc(Number(s && s.reps));
+    if (!name || !isFinite(weight) || weight < 0 || !isFinite(reps) || reps <= 0) continue;
+    // upsert упражнения: вернём id независимо от того, было оно или создано
+    const ex = await env.DB.prepare(
+      "INSERT INTO exercises (user_id, name, created_at) VALUES (?,?,?) ON CONFLICT(user_id, name) DO UPDATE SET name=name RETURNING id"
+    ).bind(uid, name, now).first();
+    await env.DB.prepare(
+      "INSERT INTO workout_sets (user_id, exercise_id, weight, reps, day, logged_at) VALUES (?,?,?,?,?,?)"
+    ).bind(uid, ex.id, weight, reps, day, now).run();
+    count++;
+  }
+  if (!count) return json({ error: "Нет валидных подходов" }, 400);
+  return json({ ok: true, count });
+}
+
+// Агрегированная аналитика: тоннаж за 7/14/30 дней + метрики по упражнениям (all-time).
+async function workoutStats(env, uid, url) {
+  const today = isValidDay(url.searchParams.get("today")) ? url.searchParams.get("today") : new Date().toISOString().slice(0, 10);
+  const from30 = addDays(today, -29);
+  const from14 = addDays(today, -13);
+  const from7 = addDays(today, -6);
+
+  // Тоннаж (SUM(weight*reps)) по дням за 30 дней → агрегируем в 7/14/30 в JS
+  const dayRows = (await env.DB.prepare(
+    "SELECT day, SUM(weight*reps) v FROM workout_sets WHERE user_id=? AND day>=? AND day<=? GROUP BY day"
+  ).bind(uid, from30, today).all()).results;
+  let d7 = 0, d14 = 0, d30 = 0;
+  for (const r of dayRows) {
+    const v = r.v || 0;
+    d30 += v;
+    if (r.day >= from14) d14 += v;
+    if (r.day >= from7) d7 += v;
+  }
+
+  // По упражнениям за всё время: объём, макс. вес, оценка 1RM (Эпли: weight*(1+reps/30))
+  const exRows = (await env.DB.prepare(
+    `SELECT e.name AS name,
+            SUM(w.weight * w.reps) AS volume,
+            MAX(w.weight) AS maxWeight,
+            MAX(w.weight * (1 + w.reps / 30.0)) AS est1rm,
+            COUNT(*) AS sets,
+            SUM(w.reps) AS reps
+       FROM workout_sets w
+       JOIN exercises e ON e.id = w.exercise_id
+      WHERE w.user_id = ?
+      GROUP BY e.id
+      ORDER BY volume DESC`
+  ).bind(uid).all()).results;
+
+  return json({
+    today,
+    tonnage: { d7, d14, d30 },
+    exercises: exRows,
+    top: exRows.slice(0, 3),
+  });
 }
 
 // ---------- сессии (подписанная cookie) ----------
