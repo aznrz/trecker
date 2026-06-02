@@ -426,6 +426,7 @@ async function quickLog(e, act, val, todayDate) {
 // Сброс сегодняшних записей привычки (отмена/исправление)
 async function resetDay(e, act, todayDate) {
   e.stopPropagation();
+  if (!confirm(`Сбросить сегодняшние записи «${act.name}»? Это действие нельзя отменить.`)) return;
   try {
     await api.clearDay(act.id, todayDate);
     showToast('Сегодняшние записи сброшены');
