@@ -96,6 +96,7 @@ const api = {
   getWorkoutStats: (day) => fetchJson(`/api/workouts/stats?today=${day}`),
   getLogs: (activityId) => fetchJson(`/api/activities/${activityId}/logs`),
   deleteLog: (id) => fetchJson(`/api/logs/${id}`, { method: 'DELETE' }),
+  updateLog: (id, amount) => fetchJson(`/api/logs/${id}`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
 };
 
 // ==========================================
@@ -616,6 +617,34 @@ async function renderActivityDetail(activityId) {
         rightSide.innerHTML += '<span class="material-symbols-outlined text-3xl" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>';
       } else {
         rightSide.innerHTML += `<p class="text-headline-md font-headline-md text-primary">${Number(log.amount.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>`;
+      }
+
+      // Кнопка редактирования (только для численных привычек)
+      if (!isSimple) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'w-9 h-9 rounded-xl flex items-center justify-center text-on-surface-variant/70 hover:text-primary hover:bg-primary/10 active:scale-90 transition-all';
+        editBtn.innerHTML = '<span class="material-symbols-outlined text-xl">edit</span>';
+        editBtn.title = 'Edit entry';
+        editBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const currentAmount = log.amount;
+          const newStr = prompt(`Edit amount for ${dateFormatted}:`, currentAmount);
+          if (newStr === null) return; // Cancelled
+          const newAmount = parseFloat(newStr);
+          if (isNaN(newAmount) || newAmount <= 0) {
+            showToast('Please enter a positive number', 'error');
+            return;
+          }
+          try {
+            await api.updateLog(log.id, newAmount);
+            showToast('Entry updated');
+            await renderCurrentTab();
+          } catch (err) {
+            showToast('Failed to update entry', 'error');
+          }
+        });
+        rightSide.appendChild(editBtn);
       }
 
       // Кнопка удаления

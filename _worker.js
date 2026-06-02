@@ -74,7 +74,11 @@ async function handleApi(request, env, url) {
   }
   if (path === "/logs/clear" && method === "POST") return clearDay(request, env, uid);
   const logMatch = path.match(/^\/logs\/(\d+)$/);
-  if (logMatch && method === "DELETE") return deleteLog(env, uid, +logMatch[1]);
+  if (logMatch) {
+    const id = +logMatch[1];
+    if (method === "DELETE") return deleteLog(env, uid, id);
+    if (method === "PATCH") return updateLog(request, env, uid, id);
+  }
 
   if (path === "/stats" && method === "GET") return stats(env, uid, url);
 
@@ -378,6 +382,16 @@ async function clearDay(request, env, uid) {
   await env.DB.prepare(
     "DELETE FROM logs WHERE user_id=? AND activity_id=? AND day=?"
   ).bind(uid, b.activity_id, day).run();
+  return json({ ok: true });
+}
+
+async function updateLog(request, env, uid, id) {
+  const b = await request.json().catch(() => ({}));
+  const amount = Number(b.amount);
+  if (!isFinite(amount) || amount <= 0) return json({ error: "invalid amount" }, 400);
+  const owned = await env.DB.prepare("SELECT id FROM logs WHERE id=? AND user_id=?").bind(id, uid).first();
+  if (!owned) return json({ error: "not found" }, 404);
+  await env.DB.prepare("UPDATE logs SET amount=? WHERE id=? AND user_id=?").bind(amount, id, uid).run();
   return json({ ok: true });
 }
 
