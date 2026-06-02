@@ -1455,8 +1455,7 @@ function on(id, event, handler) {
   if (el) el.addEventListener(event, handler);
 }
 
-// Быстрая запись (кнопка в сайдбаре, десктоп)
-on('quickLogBtnSide', 'click', openLogModal);
+// Быстрая запись (кнопка в сайдбаре, десктоп) - удалена кнопка
 
 // Gym Mode (центральная кнопка таб-бара + кнопка в сайдбаре)
 on('gymModeBtnBar', 'click', openGymModal);
