@@ -144,13 +144,24 @@ body,
 .bottom-tab.active { color: rgb(var(--primary)); }
 .bottom-tab.active .material-symbols-outlined { font-variation-settings: 'FILL' 1; }
 
-/* FAB — над нижним баром на мобильных */
-.fab {
-  position: fixed;
-  right: 18px;
-  bottom: calc(84px + env(safe-area-inset-bottom));
-  z-index: 35;
+/* Центральная кнопка быстрой записи в нижнем баре (приподнятая, не перекрывает контент) */
+.bottom-fab {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 6px;
+  border-radius: 18px;
+  background: rgb(var(--primary));
+  color: rgb(var(--on-primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgb(var(--primary) / 0.4);
+  transition: transform 0.15s ease;
 }
+.bottom-fab .material-symbols-outlined { font-size: 28px; }
+.bottom-fab:active { transform: scale(0.9); }
 
 /* Десктоп/ноутбук: компактный сайдбар вместо нижнего бара */
 @media (min-width: 768px) {
@@ -161,7 +172,6 @@ body,
     padding-bottom: 0;
   }
   .content { padding: 32px; }
-  .fab { bottom: 24px; right: 24px; }
 }
 
 /* ====================== САЙДБАР ====================== */
@@ -236,6 +246,31 @@ body,
 }
 .btn-danger:hover { background: rgb(var(--error-container)); }
 .btn-danger:active { transform: scale(0.98); }
+
+/* ====================== СЕГМЕНТ-КОНТРОЛ (тип привычки) ====================== */
+.seg {
+  display: flex;
+  gap: 4px;
+  background: rgb(var(--surface-container));
+  border: 1px solid rgb(var(--outline-variant) / 0.5);
+  border-radius: 12px;
+  padding: 4px;
+}
+.seg-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(var(--on-surface-variant));
+  transition: all 0.2s ease;
+}
+.seg-btn.active {
+  background: rgb(var(--primary));
+  color: rgb(var(--on-primary));
+  box-shadow: 0 4px 10px rgb(var(--primary) / 0.25);
+}
+.seg-btn:not(.active):active { transform: scale(0.97); }
 
 /* ====================== ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ ====================== */
 .theme-switch {

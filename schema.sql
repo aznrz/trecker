@@ -10,14 +10,18 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);
 
 CREATE TABLE IF NOT EXISTS activities (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    INTEGER NOT NULL,
-  name       TEXT NOT NULL,
-  unit       TEXT NOT NULL DEFAULT '',
-  color      TEXT NOT NULL DEFAULT '#6366f1',
-  daily_goal REAL NOT NULL DEFAULT 0,
-  sort       INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  unit        TEXT NOT NULL DEFAULT '',
+  color       TEXT NOT NULL DEFAULT '#0059b5',
+  daily_goal  REAL NOT NULL DEFAULT 0,
+  type        TEXT NOT NULL DEFAULT 'numeric',  -- 'numeric' | 'simple' (разовая/бинарная)
+  quick_add_1 REAL,                              -- значения кнопок быстрого ввода (NULL = нет кнопки)
+  quick_add_2 REAL,
+  quick_add_3 REAL,
+  sort        INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS logs (

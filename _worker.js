@@ -68,6 +68,7 @@ async function handleApi(request, env, url) {
     if (!(await rateOk(env, "api", request, 120, 60))) return json({ error: "Слишком часто, подождите немного" }, 429);
     return createLog(request, env, uid);
   }
+  if (path === "/logs/clear" && method === "POST") return clearDay(request, env, uid);
   const logMatch = path.match(/^\/logs\/(\d+)$/);
   if (logMatch && method === "DELETE") return deleteLog(env, uid, +logMatch[1]);
 
@@ -249,19 +250,43 @@ function isLocalHost(hostname) {
 
 async function seedDefaultActivities(env, uid) {
   const now = new Date().toISOString();
+  // [name, unit, color, goal, type, qa1, qa2, qa3, sort]
   const defaults = [
-    ["Подтягивания", "повторы", "#ef4444", 50, 0],
-    ["Чтение", "страниц", "#22c55e", 20, 1],
-    ["PL-300", "минут", "#6366f1", 30, 2],
+    ["Подтягивания", "повторы", "#0059b5", 50, "numeric", 5, 15, 25, 0],
+    ["Чтение", "страниц", "#006e1c", 20, "numeric", 5, 10, 25, 1],
+    ["Медитация", "", "#8c21c0", 1, "simple", null, null, null, 2],
   ];
-  for (const [name, unit, color, goal, sort] of defaults) {
+  for (const [name, unit, color, goal, type, qa1, qa2, qa3, sort] of defaults) {
     await env.DB.prepare(
-      "INSERT INTO activities (user_id, name, unit, color, daily_goal, sort, created_at) VALUES (?,?,?,?,?,?,?)"
-    ).bind(uid, name, unit, color, goal, sort, now).run();
+      "INSERT INTO activities (user_id, name, unit, color, daily_goal, type, quick_add_1, quick_add_2, quick_add_3, sort, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    ).bind(uid, name, unit, color, goal, type, qa1, qa2, qa3, sort, now).run();
   }
 }
 
 // ---------- activities ----------
+
+// Положительное число или null (для значений кнопок быстрого ввода)
+function posOrNull(v) {
+  const n = Number(v);
+  return isFinite(n) && n > 0 ? n : null;
+}
+
+// Нормализация полей привычки из тела запроса (тип + кнопки + цель)
+function normActivity(b) {
+  const type = b.type === "simple" ? "simple" : "numeric";
+  if (type === "simple") {
+    // разовая: цель всегда 1, единиц и кнопок нет
+    return { type, unit: "", goal: 1, qa1: null, qa2: null, qa3: null };
+  }
+  return {
+    type,
+    unit: (b.unit || "").trim(),
+    goal: Number(b.daily_goal) || 0,
+    qa1: posOrNull(b.quick_add_1),
+    qa2: posOrNull(b.quick_add_2),
+    qa3: posOrNull(b.quick_add_3),
+  };
+}
 
 async function listActivities(env, uid) {
   const r = await env.DB.prepare(
@@ -274,10 +299,11 @@ async function createActivity(request, env, uid) {
   const b = await request.json().catch(() => ({}));
   const name = (b.name || "").trim();
   if (!name) return json({ error: "Нужно название" }, 400);
+  const f = normActivity(b);
   const now = new Date().toISOString();
   const res = await env.DB.prepare(
-    "INSERT INTO activities (user_id, name, unit, color, daily_goal, sort, created_at) VALUES (?,?,?,?,?,?,?)"
-  ).bind(uid, name, b.unit || "", b.color || "#6366f1", Number(b.daily_goal) || 0, Number(b.sort) || 0, now).run();
+    "INSERT INTO activities (user_id, name, unit, color, daily_goal, type, quick_add_1, quick_add_2, quick_add_3, sort, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(uid, name, f.unit, b.color || "#0059b5", f.goal, f.type, f.qa1, f.qa2, f.qa3, Number(b.sort) || 0, now).run();
   return json({ id: res.meta.last_row_id });
 }
 
@@ -285,9 +311,12 @@ async function updateActivity(request, env, uid, id) {
   const b = await request.json().catch(() => ({}));
   const owned = await env.DB.prepare("SELECT id FROM activities WHERE id=? AND user_id=?").bind(id, uid).first();
   if (!owned) return json({ error: "not found" }, 404);
+  const name = (b.name || "").trim();
+  if (!name) return json({ error: "Нужно название" }, 400);
+  const f = normActivity(b);
   await env.DB.prepare(
-    "UPDATE activities SET name=?, unit=?, color=?, daily_goal=? WHERE id=? AND user_id=?"
-  ).bind((b.name || "").trim(), b.unit || "", b.color || "#6366f1", Number(b.daily_goal) || 0, id, uid).run();
+    "UPDATE activities SET name=?, unit=?, color=?, daily_goal=?, type=?, quick_add_1=?, quick_add_2=?, quick_add_3=? WHERE id=? AND user_id=?"
+  ).bind(name, f.unit, b.color || "#0059b5", f.goal, f.type, f.qa1, f.qa2, f.qa3, id, uid).run();
   return json({ ok: true });
 }
 
@@ -301,15 +330,36 @@ async function deleteActivity(env, uid, id) {
 
 async function createLog(request, env, uid) {
   const b = await request.json().catch(() => ({}));
-  const amount = Number(b.amount);
+  let amount = Number(b.amount);
   if (!b.activity_id || !isFinite(amount) || amount === 0) return json({ error: "invalid" }, 400);
-  const act = await env.DB.prepare("SELECT id FROM activities WHERE id=? AND user_id=?").bind(b.activity_id, uid).first();
+  const act = await env.DB.prepare("SELECT id, type FROM activities WHERE id=? AND user_id=?").bind(b.activity_id, uid).first();
   if (!act) return json({ error: "no activity" }, 404);
   const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
+  // Деградация legacy: type NULL/иное трактуем как 'numeric'; 'simple' — разовая
+  const isSimple = act.type === "simple";
+  if (isSimple) {
+    amount = 1; // разовая привычка всегда логируется как 1
+    // Идемпотентность: не больше одной записи за локальный день
+    const existing = await env.DB.prepare(
+      "SELECT id FROM logs WHERE user_id=? AND activity_id=? AND day=? LIMIT 1"
+    ).bind(uid, b.activity_id, day).first();
+    if (existing) return json({ ok: true, already: true });
+  }
   const logged_at = new Date().toISOString();
   await env.DB.prepare(
     "INSERT INTO logs (user_id, activity_id, amount, day, logged_at) VALUES (?,?,?,?,?)"
   ).bind(uid, b.activity_id, amount, day, logged_at).run();
+  return json({ ok: true });
+}
+
+// Сброс всех записей привычки за конкретный день (отмена/исправление)
+async function clearDay(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  if (!b.activity_id) return json({ error: "invalid" }, 400);
+  const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
+  await env.DB.prepare(
+    "DELETE FROM logs WHERE user_id=? AND activity_id=? AND day=?"
+  ).bind(uid, b.activity_id, day).run();
   return json({ ok: true });
 }
 

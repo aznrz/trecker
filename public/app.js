@@ -80,13 +80,15 @@ const api = {
   register: (email, password, turnstile) => fetchJson('/api/register', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
   logout: () => fetchJson('/api/logout', { method: 'POST' }),
   getActivities: () => fetchJson('/api/activities'),
-  createActivity: (name, unit, color, dailyGoal) =>
-    fetchJson('/api/activities', { method: 'POST', body: JSON.stringify({ name, unit, color, daily_goal: dailyGoal }) }),
-  updateActivity: (id, name, unit, color, dailyGoal) =>
-    fetchJson(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify({ name, unit, color, daily_goal: dailyGoal }) }),
+  createActivity: (data) =>
+    fetchJson('/api/activities', { method: 'POST', body: JSON.stringify(data) }),
+  updateActivity: (id, data) =>
+    fetchJson(`/api/activities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteActivity: (id) => fetchJson(`/api/activities/${id}`, { method: 'DELETE' }),
   addLog: (activityId, amount, day) =>
     fetchJson('/api/logs', { method: 'POST', body: JSON.stringify({ activity_id: activityId, amount, day }) }),
+  clearDay: (activityId, day) =>
+    fetchJson('/api/logs/clear', { method: 'POST', body: JSON.stringify({ activity_id: activityId, day }) }),
   getStats: (day, days) => fetchJson(`/api/stats?today=${day}&days=${days}`),
 };
 
@@ -273,14 +275,21 @@ function habitCard(act, todayDate) {
   card.className = 'col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
   card.addEventListener('click', () => { state.selectedActivityId = act.id; renderCurrentTab(); });
 
+  const isSimple = act.type === 'simple';
+  const doneToday = act.today_total > 0;
   let percent = 0;
-  if (act.daily_goal > 0) percent = Math.min((act.today_total / act.daily_goal) * 100, 100);
+  if (isSimple) percent = doneToday ? 100 : 0;
+  else if (act.daily_goal > 0) percent = Math.min((act.today_total / act.daily_goal) * 100, 100);
   else if (act.today_total > 0) percent = 100;
-  const done = act.daily_goal > 0 && act.today_total >= act.daily_goal;
+  const done = isSimple ? doneToday : (act.daily_goal > 0 && act.today_total >= act.daily_goal);
 
+  // Шапка: название + стрик + (numeric — счётчик / simple — статус-галочка)
   const head = document.createElement('div');
   head.className = 'flex justify-between items-start';
   const streakColor = act.streak === 0 ? 'rgb(var(--outline))' : (done ? 'rgb(var(--secondary))' : color);
+  const rightHtml = isSimple
+    ? `<span class="material-symbols-outlined shrink-0 ml-2 text-3xl" style="font-variation-settings:'FILL' ${doneToday ? 1 : 0}; color:${doneToday ? 'rgb(var(--secondary))' : 'rgb(var(--outline-variant))'}">${doneToday ? 'check_circle' : 'radio_button_unchecked'}</span>`
+    : `<span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors shrink-0 ml-2">${Number(act.today_total.toFixed(1))} / ${act.daily_goal}</span>`;
   head.innerHTML = `
     <div class="flex flex-col gap-1 min-w-0">
       <span class="text-headline-md font-headline-md truncate">${getEmoji(act.name)} ${esc(act.name)}</span>
@@ -289,10 +298,11 @@ function habitCard(act, todayDate) {
         <span class="text-label-md font-label-md">${act.streak} Day Streak</span>
       </div>
     </div>
-    <span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors shrink-0 ml-2">${Number(act.today_total.toFixed(1))} / ${act.daily_goal}</span>
+    ${rightHtml}
   `;
   card.appendChild(head);
 
+  // Прогресс-бар — цвет привычки (зелёный при выполнении)
   const track = document.createElement('div');
   track.className = 'w-full h-4 bg-surface-container-high rounded-full overflow-hidden relative';
   const fill = document.createElement('div');
@@ -304,32 +314,99 @@ function habitCard(act, todayDate) {
   card.appendChild(track);
   requestAnimationFrame(() => { fill.style.width = `${percent}%`; });
 
-  // Кнопки быстрой записи
-  let presets = [1];
-  if (act.daily_goal > 0) {
-    const g = act.daily_goal;
-    if (g >= 50) presets = [5, 15];
-    else if (g >= 15) presets = [1, 10];
-    else if (g >= 6) presets = [1, 5];
+  // --- Разовая (simple): одна кнопка во всю ширину; повторное нажатие = отмена ---
+  if (isSimple) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mt-auto w-full py-3 rounded-xl text-label-md font-label-md font-semibold flex items-center justify-center gap-2 transition-all active:scale-95';
+    if (doneToday) {
+      btn.style.background = 'rgb(var(--secondary-container))';
+      btn.style.color = 'rgb(var(--on-surface))';
+      btn.title = 'Нажмите, чтобы отменить';
+      btn.classList.add('hover:opacity-90');
+      btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">check</span> Сделано сегодня';
+      btn.addEventListener('click', (e) => resetDay(e, act, todayDate));
+    } else {
+      btn.classList.add('bg-on-surface', 'text-on-primary', 'hover:opacity-90');
+      btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">done</span> Сделать';
+      btn.addEventListener('click', (e) => quickLog(e, act, 1, todayDate));
+    }
+    card.appendChild(btn);
+    return card;
   }
-  const btnRow = document.createElement('div');
-  btnRow.className = 'grid grid-cols-3 gap-sm mt-auto';
-  presets.slice(0, 2).forEach((val) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'glass-panel py-3 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95';
-    b.textContent = `+${val}`;
-    b.addEventListener('click', (e) => quickLog(e, act, val, todayDate));
-    btnRow.appendChild(b);
-  });
-  const doneBtn = document.createElement('button');
-  doneBtn.type = 'button';
-  doneBtn.className = 'bg-on-surface text-on-primary py-3 rounded-xl text-label-md font-label-md hover:opacity-90 transition-opacity active:scale-95';
-  doneBtn.textContent = 'Done';
-  const remaining = act.daily_goal > 0 ? Math.max(act.daily_goal - act.today_total, 0) : 0;
-  doneBtn.addEventListener('click', (e) => quickLog(e, act, remaining > 0 ? remaining : (act.daily_goal || 1), todayDate));
-  btnRow.appendChild(doneBtn);
-  card.appendChild(btnRow);
+
+  // --- Численная (numeric): кнопки из quick_add_*; иначе ручной ввод ---
+  const presets = [act.quick_add_1, act.quick_add_2, act.quick_add_3].filter((v) => v != null && v > 0);
+  const hasGoal = act.daily_goal > 0;
+  const remaining = hasGoal ? Math.max(act.daily_goal - act.today_total, 0) : 0;
+  // «Done» логирует ТОЛЬКО остаток до цели; при достижении — неактивна (без дублей)
+  const makeDone = () => {
+    const d = document.createElement('button');
+    d.type = 'button';
+    if (remaining > 0) {
+      d.className = 'bg-on-surface text-on-primary py-3 px-1 rounded-xl text-label-sm font-label-md hover:opacity-90 active:scale-95 transition-all';
+      d.textContent = 'Done';
+      d.addEventListener('click', (e) => quickLog(e, act, remaining, todayDate));
+    } else {
+      d.className = 'py-3 px-1 rounded-xl flex items-center justify-center cursor-default';
+      d.style.background = 'rgb(var(--secondary-container))';
+      d.style.color = 'rgb(var(--on-surface))';
+      d.title = 'Цель достигнута';
+      d.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span>';
+      d.addEventListener('click', (e) => e.stopPropagation());
+    }
+    return d;
+  };
+
+  if (presets.length) {
+    const btnRow = document.createElement('div');
+    btnRow.className = 'grid gap-sm mt-auto';
+    btnRow.style.gridTemplateColumns = `repeat(${presets.length + (hasGoal ? 1 : 0)}, minmax(0, 1fr))`;
+    presets.forEach((val) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'glass-panel py-3 px-1 rounded-xl text-label-sm font-label-md hover:bg-surface-container-highest transition-colors active:scale-95';
+      b.textContent = `+${Number(val)}`;
+      b.addEventListener('click', (e) => quickLog(e, act, val, todayDate));
+      btnRow.appendChild(b);
+    });
+    if (hasGoal) btnRow.appendChild(makeDone());
+    card.appendChild(btnRow);
+  } else {
+    // Кнопки не заданы — ручной ввод + «Записать» (+ Done при наличии цели)
+    const row = document.createElement('div');
+    row.className = 'flex gap-sm mt-auto';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0'; input.step = 'any';
+    input.placeholder = act.unit || 'число';
+    input.className = 'field-input flex-1 py-2';
+    input.addEventListener('click', (e) => e.stopPropagation());
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'glass-panel px-4 rounded-xl text-label-md font-label-md hover:bg-surface-container-highest transition-colors active:scale-95';
+    add.textContent = 'Записать';
+    add.addEventListener('click', (e) => {
+      const v = parseFloat(input.value);
+      if (!isFinite(v) || v <= 0) { e.stopPropagation(); showToast('Введите число', 'error'); return; }
+      input.value = '';
+      quickLog(e, act, v, todayDate);
+    });
+    row.appendChild(input);
+    row.appendChild(add);
+    if (hasGoal) row.appendChild(makeDone());
+    card.appendChild(row);
+  }
+
+  // Сброс сегодняшних записей (исправление ошибок ввода)
+  if (act.today_total > 0) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'text-label-sm font-label-sm text-on-surface-variant/70 hover:text-error transition-colors self-center';
+    reset.textContent = '↺ Сбросить сегодня';
+    reset.addEventListener('click', (e) => resetDay(e, act, todayDate));
+    card.appendChild(reset);
+  }
 
   return card;
 }
@@ -343,6 +420,18 @@ async function quickLog(e, act, val, todayDate) {
     await renderCurrentTab();
   } catch (err) {
     showToast('Не удалось сохранить лог', 'error');
+  }
+}
+
+// Сброс сегодняшних записей привычки (отмена/исправление)
+async function resetDay(e, act, todayDate) {
+  e.stopPropagation();
+  try {
+    await api.clearDay(act.id, todayDate);
+    showToast('Сегодняшние записи сброшены');
+    await renderCurrentTab();
+  } catch (err) {
+    showToast('Не удалось сбросить', 'error');
   }
 }
 
@@ -376,8 +465,11 @@ async function renderActivityDetail(activityId) {
     return renderCurrentTab();
   }
   const color = act.color || '#0059b5';
+  const isSimple = act.type === 'simple';
   const series = act.series || [];
-  const total = series.reduce((a, c) => a + c.total, 0);
+  const doneDays = series.filter((s) => s.total > 0).length;
+  // simple: «всего» = число выполненных дней; numeric: сумма значений
+  const total = isSimple ? doneDays : series.reduce((a, c) => a + c.total, 0);
   const best = series.length ? Math.max(...series.map((s) => s.total)) : 0;
 
   viewContainer.appendChild(backHeader(act.name));
@@ -387,12 +479,12 @@ async function renderActivityDetail(activityId) {
   hero.className = 'grid grid-cols-12 gap-gutter mb-md';
   hero.innerHTML = `
     <div class="col-span-12 md:col-span-6 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col justify-center items-center text-center">
-      <span class="text-headline-xl font-headline-xl text-primary leading-none">${Number(total.toFixed(1))}</span>
-      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider mt-2">Всего ${esc((act.unit || '').toUpperCase())}</span>
+      <span class="text-headline-xl font-headline-xl text-primary leading-none">${isSimple ? doneDays : Number(total.toFixed(1))}</span>
+      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider mt-2">${isSimple ? 'ВЫПОЛНЕНО ДНЕЙ' : 'Всего ' + esc((act.unit || '').toUpperCase())}</span>
     </div>
     <div class="col-span-12 md:col-span-6 grid grid-cols-3 gap-gutter">
-      ${miniStat('Сегодня', Number(act.today_total.toFixed(1)))}
-      ${miniStat('Рекорд', Number(best.toFixed(1)), color)}
+      ${miniStat('Сегодня', isSimple ? (act.today_total > 0 ? '✓' : '—') : Number(act.today_total.toFixed(1)))}
+      ${isSimple ? miniStat('Дней', doneDays, color) : miniStat('Рекорд', Number(best.toFixed(1)), color)}
       ${miniStat('Streak', act.streak + 'd')}
     </div>
   `;
@@ -407,20 +499,21 @@ async function renderActivityDetail(activityId) {
   chartSec.appendChild(chartHead);
 
   const last7 = series.slice(-7);
-  const maxVal = Math.max(...last7.map((s) => s.total), act.daily_goal || 1);
+  const maxVal = isSimple ? 1 : Math.max(...last7.map((s) => s.total), act.daily_goal || 1);
   const bars = document.createElement('div');
   bars.className = 'flex items-end justify-between h-40 gap-3 pt-4';
   const wd = ['В', 'П', 'В', 'С', 'Ч', 'П', 'С'];
   last7.forEach((d) => {
     const isToday = d.day === todayDate;
     const date = new Date(d.day + 'T00:00:00');
-    const h = maxVal > 0 ? (d.total / maxVal) * 100 : 0;
-    const done = act.daily_goal > 0 && d.total >= act.daily_goal;
+    const val = isSimple ? (d.total > 0 ? 1 : 0) : d.total;
+    const h = maxVal > 0 ? (val / maxVal) * 100 : 0;
+    const done = !isSimple && act.daily_goal > 0 && d.total >= act.daily_goal;
     const col = document.createElement('div');
     col.className = 'flex-1 flex flex-col items-center gap-2 group relative';
     const tip = document.createElement('div');
     tip.className = 'absolute -top-2 bg-on-surface text-on-primary text-xs font-bold rounded py-1 px-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10';
-    tip.textContent = `${Number(d.total.toFixed(1))} ${act.unit || ''}`;
+    tip.textContent = isSimple ? (d.total > 0 ? 'выполнено' : '—') : `${Number(d.total.toFixed(1))} ${act.unit || ''}`;
     const tr = document.createElement('div');
     tr.className = 'w-full bg-surface-container-high rounded-t-xl relative h-28 overflow-hidden';
     const bf = document.createElement('div');
@@ -485,10 +578,12 @@ async function renderActivityDetail(activityId) {
           </div>
           <div>
             <p class="text-label-md font-label-md font-bold">${p[2]}.${p[1]}.${p[0]}</p>
-            <p class="text-label-sm font-label-sm text-on-surface-variant">Дневная сумма</p>
+            <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? 'Отметка' : 'Дневная сумма'}</p>
           </div>
         </div>
-        <p class="text-headline-md font-headline-md text-primary">${Number(d.total.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>
+        ${isSimple
+          ? '<span class="material-symbols-outlined text-3xl" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>'
+          : `<p class="text-headline-md font-headline-md text-primary">${Number(d.total.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>`}
       `;
       logList.appendChild(item);
     });
@@ -596,15 +691,21 @@ async function renderStatsTab() {
   grid.className = 'grid grid-cols-12 gap-gutter';
   activities.forEach((act) => {
     const color = act.color || '#0059b5';
+    const isSimple = act.type === 'simple';
     const series = act.series || [];
-    const sum = series.reduce((a, c) => a + c.total, 0);
+    const doneDays = series.filter((s) => s.total > 0).length;
+    // simple: сумма = число выполненных дней; numeric: сумма значений
+    const sum = isSimple ? doneDays : series.reduce((a, c) => a + c.total, 0);
+    const sumLabel = isSimple
+      ? `Выполнено за ${state.statsPeriod} дн.: ${doneDays} ${doneDays === 1 ? 'день' : 'дн.'}`
+      : `Сумма за ${state.statsPeriod} дн.: ${Number(sum.toFixed(1))} ${esc(act.unit || '')}`;
     const card = document.createElement('div');
     card.className = 'col-span-12 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
     card.innerHTML = `
       <div class="flex justify-between items-center mb-md border-b border-outline-variant/30 pb-3">
         <div class="min-w-0">
           <h3 class="text-headline-md font-headline-md truncate">${getEmoji(act.name)} ${esc(act.name)}</h3>
-          <span class="text-label-sm font-label-sm text-on-surface-variant">Сумма за ${state.statsPeriod} дн.: ${Number(sum.toFixed(1))} ${esc(act.unit || '')}</span>
+          <span class="text-label-sm font-label-sm text-on-surface-variant">${sumLabel}</span>
         </div>
         <div class="text-right shrink-0 ml-2 text-secondary font-semibold flex items-center gap-1">
           <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
@@ -612,18 +713,19 @@ async function renderStatsTab() {
         </div>
       </div>
     `;
-    // SVG-график
+    // SVG-график (для simple — бинарные столбцы: выполнено/нет)
     const w = 460, hgt = 70;
-    const maxVal = Math.max(...series.map((s) => s.total), act.daily_goal || 1);
+    const maxVal = isSimple ? 1 : Math.max(...series.map((s) => s.total), act.daily_goal || 1);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`);
     svg.setAttribute('class', 'w-full h-16 mt-3');
     const gap = series.length > 10 ? 3 : 8;
     const bw = (w - gap * (series.length - 1)) / series.length;
     series.forEach((d, i) => {
-      let bh = maxVal > 0 ? (d.total / maxVal) * hgt : 0;
-      if (d.total > 0 && bh < 5) bh = 5;
-      const done = act.daily_goal > 0 && d.total >= act.daily_goal;
+      const val = isSimple ? (d.total > 0 ? 1 : 0) : d.total;
+      let bh = maxVal > 0 ? (val / maxVal) * hgt : 0;
+      if (val > 0 && bh < 5) bh = 5;
+      const done = !isSimple && act.daily_goal > 0 && d.total >= act.daily_goal;
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', (i * (bw + gap)).toString());
       rect.setAttribute('y', (hgt - bh).toString());
@@ -633,7 +735,9 @@ async function renderStatsTab() {
       // var() в SVG работает только через style, не через presentation-атрибут fill
       rect.style.fill = done ? 'rgb(var(--secondary-container))' : (d.total > 0 ? color : 'rgb(var(--surface-container-high))');
       const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-      t.textContent = `${d.day}: ${Number(d.total.toFixed(1))} / ${act.daily_goal} ${act.unit || ''}`;
+      t.textContent = isSimple
+        ? `${d.day}: ${d.total > 0 ? 'выполнено' : '—'}`
+        : `${d.day}: ${Number(d.total.toFixed(1))} / ${act.daily_goal} ${act.unit || ''}`;
       rect.appendChild(t);
       svg.appendChild(rect);
     });
@@ -656,6 +760,27 @@ const actGoalInput = document.getElementById('actGoalInput');
 const actColorInput = document.getElementById('actColorInput');
 const deleteActivityBtn = document.getElementById('deleteActivityBtn');
 const colorPicker = document.getElementById('colorPicker');
+const typeSeg = document.getElementById('typeSeg');
+const actTypeInput = document.getElementById('actTypeInput');
+const numericFields = document.getElementById('numericFields');
+const actQa1Input = document.getElementById('actQa1Input');
+const actQa2Input = document.getElementById('actQa2Input');
+const actQa3Input = document.getElementById('actQa3Input');
+
+// Переключение типа привычки: показываем поля «численной» только для numeric
+function setActivityType(type) {
+  const t = type === 'simple' ? 'simple' : 'numeric';
+  actTypeInput.value = t;
+  typeSeg.querySelectorAll('.seg-btn').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-type') === t);
+  });
+  numericFields.style.display = t === 'simple' ? 'none' : '';
+}
+
+typeSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (btn) setActivityType(btn.getAttribute('data-type'));
+});
 
 const logModal = document.getElementById('logModal');
 const logForm = document.getElementById('logForm');
@@ -686,8 +811,12 @@ function openActivityModal(activity = null) {
     actNameInput.value = activity.name;
     actUnitInput.value = activity.unit || '';
     actGoalInput.value = activity.daily_goal || 0;
+    actQa1Input.value = activity.quick_add_1 != null ? activity.quick_add_1 : '';
+    actQa2Input.value = activity.quick_add_2 != null ? activity.quick_add_2 : '';
+    actQa3Input.value = activity.quick_add_3 != null ? activity.quick_add_3 : '';
     state.selectedColor = activity.color || '#0059b5';
     actColorInput.value = state.selectedColor;
+    setActivityType(activity.type || 'numeric');
     deleteActivityBtn.hidden = false;
   } else {
     modalTitle.textContent = 'Новая привычка';
@@ -695,6 +824,7 @@ function openActivityModal(activity = null) {
     activityForm.reset();
     state.selectedColor = '#0059b5';
     actColorInput.value = '#0059b5';
+    setActivityType('numeric');
     deleteActivityBtn.hidden = true;
   }
   initColorPicker();
@@ -712,7 +842,8 @@ function openLogModal() {
   state.activities.forEach((act) => {
     const opt = document.createElement('option');
     opt.value = act.id;
-    opt.textContent = `${act.name} (${act.unit || ''})`;
+    // не показываем пустые скобки для разовых/без единиц измерения
+    opt.textContent = act.unit ? `${act.name} (${act.unit})` : act.name;
     logActivitySelect.appendChild(opt);
   });
   if (state.selectedActivityId) logActivitySelect.value = state.selectedActivityId;
@@ -906,8 +1037,9 @@ document.getElementById('themeToggleSide').addEventListener('click', toggleTheme
 // Add New Habit
 document.getElementById('addHabitBtn').addEventListener('click', () => openActivityModal(null));
 
-// FAB → лог
-document.getElementById('fabBtn').addEventListener('click', openLogModal);
+// Быстрая запись (кнопка в сайдбаре и центральная в нижнем баре)
+document.getElementById('quickLogBtnSide').addEventListener('click', openLogModal);
+document.getElementById('quickLogBtnBar').addEventListener('click', openLogModal);
 
 // Выход
 async function doLogout() {
@@ -916,7 +1048,6 @@ async function doLogout() {
     await api.logout();
     state.user = null;
     state.selectedActivityId = null;
-    closeSidebar();
     showToast('Сессия завершена');
     renderAuth();
   } catch (err) {
@@ -952,15 +1083,25 @@ activityForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = activityIdInput.value;
   const name = actNameInput.value.trim();
-  const unit = actUnitInput.value.trim();
-  const goal = parseFloat(actGoalInput.value) || 0;
-  const color = actColorInput.value;
+  if (!name) return;
+  const type = actTypeInput.value === 'simple' ? 'simple' : 'numeric';
+  const numOrNull = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null; };
+  const data = {
+    name,
+    color: actColorInput.value,
+    type,
+    unit: type === 'simple' ? '' : actUnitInput.value.trim(),
+    daily_goal: type === 'simple' ? 1 : (parseFloat(actGoalInput.value) || 0),
+    quick_add_1: type === 'simple' ? null : numOrNull(actQa1Input.value),
+    quick_add_2: type === 'simple' ? null : numOrNull(actQa2Input.value),
+    quick_add_3: type === 'simple' ? null : numOrNull(actQa3Input.value),
+  };
   try {
     if (id) {
-      await api.updateActivity(id, name, unit, color, goal);
+      await api.updateActivity(id, data);
       showToast('Привычка обновлена!');
     } else {
-      await api.createActivity(name, unit, color, goal);
+      await api.createActivity(data);
       showToast('Привычка добавлена!');
     }
     closeActivityModal();

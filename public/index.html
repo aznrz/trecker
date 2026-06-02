@@ -143,6 +143,10 @@
           <span class="material-symbols-outlined text-[20px]">add</span>
           <span class="text-label-md font-label-md">Add New Habit</span>
         </button>
+        <button id="quickLogBtnSide" type="button" class="w-full py-3 glass-panel rounded-xl font-semibold text-on-surface hover:bg-surface-container-high/60 active:scale-95 transition-all flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[20px] text-primary">bolt</span>
+          <span class="text-label-md font-label-md">Быстрая запись</span>
+        </button>
         <div class="p-3 glass-panel rounded-2xl flex items-center justify-between gap-2 shadow-sm">
           <div class="flex items-center gap-2 min-w-0">
             <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
@@ -170,12 +174,7 @@
       <div id="view" class="content"></div>
     </main>
 
-    <!-- FAB: быстрая запись -->
-    <button id="fabBtn" type="button" class="fab w-14 h-14 bg-primary text-on-primary rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all" title="Быстрая запись">
-      <span class="material-symbols-outlined text-3xl">bolt</span>
-    </button>
-
-    <!-- Нижний таб-бар (смартфоны ≤767px) -->
+    <!-- Нижний таб-бар (смартфоны ≤767px): 3 вкладки + центральная кнопка быстрой записи -->
     <nav class="bottom-bar">
       <button class="bottom-tab" data-tab="today" type="button">
         <span class="material-symbols-outlined">calendar_today</span>
@@ -184,6 +183,9 @@
       <button class="bottom-tab" data-tab="stats" type="button">
         <span class="material-symbols-outlined">bar_chart</span>
         <span>Stats</span>
+      </button>
+      <button id="quickLogBtnBar" class="bottom-fab" type="button" title="Быстрая запись">
+        <span class="material-symbols-outlined">bolt</span>
       </button>
       <button class="bottom-tab" data-tab="activities" type="button">
         <span class="material-symbols-outlined">fitness_center</span>
@@ -203,18 +205,41 @@
         <input type="hidden" id="activityIdInput" />
         <div class="field">
           <label for="actNameInput" class="field-label">НАЗВАНИЕ</label>
-          <input type="text" id="actNameInput" placeholder="Например: 💪 Подтягивания, 📚 Чтение" class="field-input" required />
+          <input type="text" id="actNameInput" placeholder="Например: 💪 Подтягивания, 🧘 Медитация" class="field-input" required />
         </div>
-        <div class="flex gap-4">
-          <div class="field flex-1">
-            <label for="actUnitInput" class="field-label">ЕД. ИЗМЕРЕНИЯ</label>
-            <input type="text" id="actUnitInput" placeholder="страниц, повторов, мин" class="field-input" required />
+
+        <div class="field">
+          <label class="field-label">ТИП ПРИВЫЧКИ</label>
+          <div class="seg" id="typeSeg">
+            <button type="button" class="seg-btn active" data-type="numeric">📊 Численная</button>
+            <button type="button" class="seg-btn" data-type="simple">✓ Разовая</button>
           </div>
-          <div class="field flex-1">
-            <label for="actGoalInput" class="field-label">ДНЕВНАЯ ЦЕЛЬ</label>
-            <input type="number" id="actGoalInput" placeholder="0" min="0" step="any" class="field-input" required />
+          <input type="hidden" id="actTypeInput" value="numeric" />
+        </div>
+
+        <!-- Поля только для численных привычек -->
+        <div id="numericFields" class="flex flex-col gap-[18px]">
+          <div class="flex gap-4">
+            <div class="field flex-1">
+              <label for="actUnitInput" class="field-label">ЕД. ИЗМЕРЕНИЯ</label>
+              <input type="text" id="actUnitInput" placeholder="страниц, повторов, мин" class="field-input" />
+            </div>
+            <div class="field flex-1">
+              <label for="actGoalInput" class="field-label">ДНЕВНАЯ ЦЕЛЬ</label>
+              <input type="number" id="actGoalInput" placeholder="0" min="0" step="any" class="field-input" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label">КНОПКИ БЫСТРОГО ВВОДА</label>
+            <div class="flex gap-3">
+              <input type="number" id="actQa1Input" placeholder="+5" min="0" step="any" class="field-input text-center" />
+              <input type="number" id="actQa2Input" placeholder="+10" min="0" step="any" class="field-input text-center" />
+              <input type="number" id="actQa3Input" placeholder="+25" min="0" step="any" class="field-input text-center" />
+            </div>
+            <p class="text-label-sm font-label-sm text-on-surface-variant mt-1">Пустые поля не показываются на карточке.</p>
           </div>
         </div>
+
         <div class="field">
           <label class="field-label mb-1 block">ЦВЕТ</label>
           <div class="color-row" id="colorPicker"></div>
