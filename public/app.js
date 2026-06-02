@@ -266,7 +266,8 @@ async function renderDashboardTab() {
 function habitCard(act, todayDate) {
   const color = act.color || '#0059b5';
   const card = document.createElement('div');
-  card.className = 'col-span-12 md:col-span-6 lg:col-span-4 glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
+  // h-full + flex-col + mt-auto на блоке кнопок → карточки в ряду одинаковой высоты, кнопки прижаты к низу (задача 8)
+  card.className = 'col-span-12 md:col-span-6 lg:col-span-4 h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
   card.addEventListener('click', () => { state.selectedActivityId = act.id; renderCurrentTab(); });
 
   const isSimple = act.type === 'simple';
@@ -286,7 +287,7 @@ function habitCard(act, todayDate) {
     : `<span class="text-headline-md font-headline-md text-on-surface-variant/40 group-hover:text-primary transition-colors shrink-0 ml-2">${Number(act.today_total.toFixed(1))} / ${act.daily_goal}</span>`;
   head.innerHTML = `
     <div class="flex flex-col gap-1 min-w-0">
-      <span class="text-headline-md font-headline-md truncate">${getEmoji(act.name)} ${esc(act.name)}</span>
+      <span class="text-headline-md font-headline-md leading-[1.2] break-words">${getEmoji(act.name)} ${esc(act.name)}</span>
       <div class="flex items-center gap-1 font-semibold" style="color:${streakColor}">
         <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' ${act.streak === 0 ? 0 : 1};">local_fire_department</span>
         <span class="text-label-md font-label-md">${act.streak} Day Streak</span>
@@ -396,7 +397,7 @@ function habitCard(act, todayDate) {
   if (act.today_total > 0) {
     const reset = document.createElement('button');
     reset.type = 'button';
-    reset.className = 'text-label-sm font-label-sm text-on-surface-variant/70 hover:text-error transition-colors self-center';
+    reset.className = 'text-label-sm font-label-sm text-on-surface-variant/70 hover:text-error transition-colors self-center mt-2';
     reset.textContent = '↺ Сбросить сегодня';
     reset.addEventListener('click', (e) => resetDay(e, act, todayDate));
     card.appendChild(reset);
@@ -662,7 +663,7 @@ async function renderProfileTab() {
     const left = document.createElement('div');
     left.className = 'min-w-0';
     left.innerHTML = `
-      <h3 class="text-headline-md font-headline-md truncate">${getEmoji(act.name)} ${esc(act.name)}</h3>
+      <h3 class="text-headline-md font-headline-md leading-[1.2] break-words">${getEmoji(act.name)} ${esc(act.name)}</h3>
       <div class="text-label-sm font-label-sm text-on-surface-variant mt-1 flex items-center gap-2">
         <span class="inline-block w-3 h-3 rounded-full" style="background:${act.color || '#0059b5'}"></span>
         Цель: ${act.daily_goal} ${esc(act.unit || '')}
@@ -818,7 +819,7 @@ async function renderStatsTab() {
     card.innerHTML = `
       <div class="flex justify-between items-center mb-md border-b border-outline-variant/30 pb-3">
         <div class="min-w-0">
-          <h3 class="text-headline-md font-headline-md truncate">${getEmoji(act.name)} ${esc(act.name)}</h3>
+          <h3 class="text-headline-md font-headline-md leading-[1.2] break-words">${getEmoji(act.name)} ${esc(act.name)}</h3>
           <span class="text-label-sm font-label-sm text-on-surface-variant">${sumLabel}</span>
         </div>
         <div class="text-right shrink-0 ml-2 text-secondary font-semibold flex items-center gap-1">
