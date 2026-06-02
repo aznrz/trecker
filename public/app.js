@@ -526,7 +526,11 @@ async function renderActivityDetail(activityId) {
     const lab = document.createElement('span');
     lab.className = `text-label-sm font-label-sm ${isToday ? 'font-bold text-primary' : 'text-on-surface-variant/60'} text-center flex flex-col items-center`;
     lab.innerHTML = `<span>${wd[date.getDay()]}</span><span class="text-[10px] opacity-70 font-normal mt-0.5">${date.getDate()}</span>`;
-    col.appendChild(tip); col.appendChild(tr); col.appendChild(lab);
+    const valLabel = document.createElement('span');
+    valLabel.className = 'text-[11px] font-bold text-center mb-1 shrink-0';
+    valLabel.style.color = val > 0 ? (done ? 'rgb(var(--secondary))' : color) : 'rgb(var(--outline-variant))';
+    valLabel.textContent = val > 0 ? (isSimple ? '✓' : Number(val.toFixed(1))) : '—';
+    col.appendChild(tip); col.appendChild(valLabel); col.appendChild(tr); col.appendChild(lab);
     bars.appendChild(col);
   });
   chartSec.appendChild(bars);
@@ -921,21 +925,21 @@ async function renderStatsTab() {
       </div>
     `;
     // SVG-график (для simple — бинарные столбцы: выполнено/нет)
-    const w = 460, hgt = 95, chartH = 68;
+    const w = 460, hgt = 100, chartTop = 18, chartH = 62;
     const maxVal = isSimple ? 1 : Math.max(...series.map((s) => s.total), act.daily_goal || 1);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`);
-    svg.setAttribute('class', 'w-full h-20 mt-3');
+    svg.setAttribute('class', 'w-full h-24 mt-3');
     const gap = series.length > 10 ? 3 : 8;
     const bw = (w - gap * (series.length - 1)) / series.length;
     series.forEach((d, i) => {
       const val = isSimple ? (d.total > 0 ? 1 : 0) : d.total;
       let bh = maxVal > 0 ? (val / maxVal) * chartH : 0;
-      if (val > 0 && bh < 5) bh = 5;
+      if (val > 0 && bh < 4) bh = 4;
       const done = !isSimple && act.daily_goal > 0 && d.total >= act.daily_goal;
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', (i * (bw + gap)).toString());
-      rect.setAttribute('y', (chartH - bh).toString());
+      rect.setAttribute('y', (chartTop + chartH - bh).toString());
       rect.setAttribute('width', bw.toString());
       rect.setAttribute('height', bh.toString());
       rect.setAttribute('rx', '4');
@@ -948,6 +952,19 @@ async function renderStatsTab() {
       rect.appendChild(t);
       svg.appendChild(rect);
 
+      // Рисуем числовое значение (подпись данных) над столбиком, если оно больше 0
+      if (val > 0) {
+        const valText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        valText.textContent = isSimple ? '✓' : Number(val.toFixed(1));
+        valText.setAttribute('x', (i * (bw + gap) + bw / 2).toString());
+        valText.setAttribute('y', (chartTop + chartH - bh - 4).toString());
+        valText.setAttribute('text-anchor', 'middle');
+        valText.setAttribute('font-size', '10px');
+        valText.setAttribute('font-weight', 'bold');
+        valText.style.fill = done ? 'rgb(var(--secondary))' : color;
+        svg.appendChild(valText);
+      }
+
       // Рисуем подпись даты под каждым столбцом (для 7 дней — все, для 30 дней — с шагом 5)
       const showLabel = (series.length <= 7) || (i % 5 === 0) || (i === series.length - 1);
       if (showLabel) {
@@ -957,12 +974,12 @@ async function renderStatsTab() {
         const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
         text.textContent = `${dayStr}.${monthStr}`;
         text.setAttribute('x', (i * (bw + gap) + bw / 2).toString());
-        text.setAttribute('y', '86');
+        text.setAttribute('y', '94');
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '10px');
         text.setAttribute('font-weight', '600');
         text.style.fill = 'rgb(var(--on-surface-variant))';
-        text.style.opacity = '0.6';
+        text.style.opacity = '0.85';
         svg.appendChild(text);
       }
     });
