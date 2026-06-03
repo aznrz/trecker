@@ -2,6 +2,58 @@
 
 Приложение на Cloudflare Workers + D1. Прод: https://trecker.ms-cert.workers.dev
 
+> 📚 База знаний проекта (вики по [методу Карпатого](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) — в [wiki/](wiki/index.md). Правила её ведения — в [AGENTS.md](AGENTS.md).
+
+## Локальный запуск
+
+```bash
+npm install            # один раз
+npm run dev            # запуск локального сервера (wrangler dev)
+```
+
+Откройте в браузере: **http://localhost:8787** (он же `http://127.0.0.1:8787`).
+
+Остановить сервер — `Ctrl+C` в терминале.
+
+### База данных (D1)
+
+Локальная БД живёт в `.wrangler/state` (создаётся автоматически). Если таблиц ещё нет
+или вы развернули проект с нуля — инициализируйте схему:
+
+```bash
+npm run db:init:local      # применить schema.sql к ЛОКАЛЬНОЙ базе
+```
+
+**Миграции существующей базы.** Схема использует `CREATE TABLE IF NOT EXISTS`, поэтому новые
+колонки в уже созданные таблицы сами не добавятся — для этого есть [migration.sql](migration.sql)
+(точечные `ALTER TABLE`: дефолты упражнений + калории подходов):
+
+```bash
+# локально (если таблицы exercises/workout_sets уже были созданы старой схемой):
+npx wrangler d1 execute trecker --local --file=migration.sql
+
+# на проде (выполнять перед деплоем бэкенда с новыми полями):
+npx wrangler d1 execute trecker --remote --file=migration.sql
+```
+
+> SQLite не поддерживает `ADD COLUMN IF NOT EXISTS`. Повторный прогон `migration.sql`
+> на уже мигрированной базе даст ошибку «duplicate column» — это ожидаемо, не страшно.
+
+Полезные проверки:
+
+```bash
+# какие колонки в таблице
+npx wrangler d1 execute trecker --local --command "SELECT name FROM pragma_table_info('exercises');"
+# последние сохранённые подходы (вес/повторы/калории)
+npx wrangler d1 execute trecker --local --command "SELECT exercise_id, weight, reps, calories FROM workout_sets ORDER BY id DESC LIMIT 5;"
+```
+
+### Деплой
+
+```bash
+npm run deploy
+```
+
 ## Вход через Google (OAuth)
 
 Реализован как фича-флаг: кнопка «Войти через Google» включается автоматически,
