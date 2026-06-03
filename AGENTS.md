@@ -1,104 +1,103 @@
 # AGENTS.md
 
-Инструкции для AI-агентов, работающих с этим репозиторием.
+Instructions for AI agents working in this repository.
 
-## Самое главное (TL;DR)
+## TL;DR
 
-- **Что:** Habit Tracker на **Cloudflare Workers + D1**. Прод: https://trecker.ms-cert.workers.dev
-- **Где код:** `_worker.js` — весь бэкенд (`/api/*`); `public/` — фронт (ванильный JS, без сборки);
-  `schema.sql` — схема D1.
-- **Сначала читай вики:** база знаний — в [wiki/](wiki/index.md). На вопросы о проекте сперва
-  смотри туда, потом сверяйся с кодом. При расхождении **первичен код** — поправь страницу.
-- **После правок:** обнови затронутые страницы `wiki/` + добавь строку в [wiki/log.md](wiki/log.md)
-  (ingest). Подробнее — раздел «Вики проекта» ниже.
-- **Стиль:** комментарии и коммиты — **на русском**.
-- **Безопасность:** секреты **не коммитить**, только `wrangler secret put`.
-- **Необратимо (спрашивай подтверждение):** прод-миграции D1 (`--remote`), запись/сброс секретов,
-  `git push` в `main` (= авто-деплой на прод).
+- **What:** Habit Tracker on **Cloudflare Workers + D1**. Prod: https://trecker.ms-cert.workers.dev
+- **Where the code is:** `_worker.js` — the entire backend (`/api/*`); `public/` — frontend (vanilla JS, no build step);
+  `schema.sql` — D1 schema.
+- **Read the wiki first:** the knowledge base lives in [wiki/](wiki/index.md). For questions about the project,
+  look there first, then cross-check the code. On any conflict, **the code wins** — fix the page.
+- **After changes:** update the affected `wiki/` pages and append a line to [wiki/log.md](wiki/log.md)
+  (ingest). See the "Project wiki" section below.
+- **Style:** code comments — **Russian** (to match the existing code); commit messages — **English**.
+- **Security:** **never commit secrets**, use `wrangler secret put` only.
+- **Irreversible (ask for confirmation):** prod D1 migrations (`--remote`), writing/resetting secrets,
+  `git push` to `main` (= auto-deploy to prod).
 
-## Что это
+## What this is
 
-Личный трекер активностей (Habit Tracker) на **Cloudflare Workers + D1**.
-Прод: https://trecker.ms-cert.workers.dev
+A personal activity tracker (Habit Tracker) on **Cloudflare Workers + D1**.
+Prod: https://trecker.ms-cert.workers.dev
 
-## Архитектура
+## Architecture
 
-- **`_worker.js`** — весь бэкенд: роутер, аутентификация, API. Запросы `/api/*`
-  обрабатывает воркер, остальное (статика) отдаётся из `public/` через binding `ASSETS`.
-- **`public/`** — фронтенд (ванильный JS, без сборки): `index.html`, `app.js`,
+- **`_worker.js`** — the entire backend: router, authentication, API. `/api/*` requests
+  are handled by the worker; everything else (static assets) is served from `public/` via the `ASSETS` binding.
+- **`public/`** — frontend (vanilla JS, no build step): `index.html`, `app.js`,
   `style.css`, `manifest.json`, `icon.svg`.
-- **`schema.sql`** — схема D1 (SQLite). Таблицы: `users`, `activities`, `logs`,
-  `sessions`, `rate_limits`.
-- **`wrangler.jsonc`** — конфиг Cloudflare. Worker name `trecker`, D1 binding `DB`.
+- **`schema.sql`** — D1 (SQLite) schema. Tables: `users`, `activities`, `logs`,
+  `exercises`, `workout_sets`, `rate_limits`.
+- **`wrangler.jsonc`** — Cloudflare config. Worker name `trecker`, D1 binding `DB`.
 
-## Команды
+## Commands
 
 ```
-npm run dev              # локальная разработка (wrangler dev, http://localhost:8787)
-npm run deploy           # ручной деплой (обычно не нужен — см. ниже)
-npm run db:init          # применить schema.sql к удалённой D1
-npm run db:init:local    # применить schema.sql к локальной D1
+npm run dev              # local development (wrangler dev, http://localhost:8787)
+npm run deploy           # manual deploy (usually not needed — see below)
+npm run db:init          # apply schema.sql to the remote D1
+npm run db:init:local    # apply schema.sql to the local D1
 ```
 
-Произвольный SQL по удалённой базе:
+Ad-hoc SQL against the remote database:
 ```
 npx wrangler d1 execute trecker --remote --command "SELECT ..."
 ```
 
-## Деплой
+## Deploy
 
-Прод **авто-деплоится из Git** (push в `main`). Ручной `wrangler deploy` обычно не нужен.
-Секреты хранятся отдельно от кода в Cloudflare и переживают редеплои.
+Prod is **auto-deployed from Git** (push to `main`). A manual `wrangler deploy` is usually not needed.
+Secrets are stored separately from the code in Cloudflare and survive redeploys.
 
-## Фича-флаги (через секреты Cloudflare)
+## Feature flags (via Cloudflare secrets)
 
-Фичи включаются заданием секретов; пока секрет не задан — поведение как раньше,
-прод не ломается. `/api/config` сообщает фронту, что включено.
+Features are enabled by setting secrets; until a secret is set, behavior stays as before and
+prod doesn't break. `/api/config` tells the frontend what's enabled.
 
 - **Google OAuth** — `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`.
-  Подробности и нюансы: см. [README.md](README.md).
-- **Cloudflare Turnstile** (антибот) — `TURNSTILE_SECRET` + `TURNSTILE_SITEKEY`.
+  Details and caveats: see [README.md](README.md).
+- **Cloudflare Turnstile** (anti-bot) — `TURNSTILE_SECRET` + `TURNSTILE_SITEKEY`.
 
-Задать секрет: `npx wrangler secret put ИМЯ`.
+Set a secret: `npx wrangler secret put NAME`.
 
-## Соглашения
+## Conventions
 
-- Комментарии в коде и сообщения коммитов — **на русском**.
-- Миграции БД пишутся идемпотентно (`IF NOT EXISTS`, `ADD COLUMN` с проверкой) и
-  применяются вручную через `wrangler d1 execute --remote`. Схему в `schema.sql`
-  держать в актуальном состоянии.
-- Не коммитить секреты. Все ключи/токены — только через `wrangler secret put`.
+- Code comments — **Russian** (to match the existing code). Commit messages — **English**.
+- DB migrations are written idempotently (`IF NOT EXISTS`, guarded `ADD COLUMN`) and applied
+  manually via `wrangler d1 execute --remote`. Keep `schema.sql` up to date.
+- Never commit secrets. All keys/tokens go through `wrangler secret put` only.
 
-## Осторожно (необратимые действия — спрашивай подтверждение)
+## Caution (irreversible actions — ask for confirmation)
 
-- Миграции боевой D1 (`--remote`).
-- Запись/сброс секретов в Cloudflare.
-- `git push` в `main` (триггерит авто-деплой на прод).
+- Migrations on the production D1 (`--remote`).
+- Writing/resetting secrets in Cloudflare.
+- `git push` to `main` (triggers auto-deploy to prod).
 
-## Вики проекта (метод Карпатого)
+## Project wiki (Karpathy method)
 
-В репозитории ведётся персистентная база знаний по
-[методу Карпатого](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
-Три слоя:
+This repo maintains a persistent knowledge base following the
+[Karpathy method](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+Three layers:
 
-- **Layer 1 — Raw sources** (неизменяемые): код (`_worker.js`, `public/`, `schema.sql`,
-  `migration.sql`), дизайн (`design/`). Агент читает, но не «подгоняет под вики».
-- **Layer 2 — Wiki** (`wiki/`): кросс-связанные markdown-страницы. Каталог — `wiki/index.md`,
-  журнал — `wiki/log.md`. Этот слой агент **владеет и поддерживает**.
-- **Layer 3 — Schema**: этот файл (`AGENTS.md`) — правила и соглашения.
+- **Layer 1 — Raw sources** (immutable): code (`_worker.js`, `public/`, `schema.sql`,
+  `migration.sql`), design (`design/`). The agent reads but does not "rewrite to fit the wiki".
+- **Layer 2 — Wiki** (`wiki/`): cross-linked markdown pages. Catalog — `wiki/index.md`,
+  journal — `wiki/log.md`. The agent **owns and maintains** this layer.
+- **Layer 3 — Schema**: this file (`AGENTS.md`) — rules and conventions.
 
-### Соглашения вики
-- Связи между страницами — `[[имя-страницы]]` (имя файла без `.md`).
-- У каждой страницы — frontmatter: `title`, `category`, `tags`, `sources`, `updated` (YYYY-MM-DD).
-- Имена файлов — kebab-case.
+### Wiki conventions
+- Links between pages — `[[page-name]]` (file name without `.md`).
+- Every page has frontmatter: `title`, `category`, `tags`, `sources`, `updated` (YYYY-MM-DD).
+- File names — kebab-case.
 
-### Операции
-- **Ingest** (после правок кода/фич): обнови затронутые страницы `wiki/`, поправь связи и
-  `updated`, добавь запись в `wiki/log.md` (только добавление, сверху). При новой теме — заведи
-  страницу и впиши её в `wiki/index.md`.
-- **Query**: для ответов о проекте сперва ищи в `wiki/`; при необходимости сверяйся с Layer 1
-  (код — источник правды). Ценный новый вывод можно зафиксировать как страницу.
-- **Lint** (периодически): проверь противоречия с кодом, устаревшие факты, страницы-сироты
-  (нет входящих `[[ссылок]]`), битые ссылки, отсутствующие перекрёстные связи. Итог — в `wiki/log.md`.
+### Operations
+- **Ingest** (after code/feature changes): update the affected `wiki/` pages, fix links and
+  `updated`, append an entry to `wiki/log.md` (append-only, on top). For a new topic — create a
+  page and add it to `wiki/index.md`.
+- **Query**: to answer questions about the project, search `wiki/` first; cross-check Layer 1
+  when needed (the code is the source of truth). A valuable new finding can be filed as a page.
+- **Lint** (periodically): check for contradictions with the code, stale facts, orphan pages
+  (no incoming `[[links]]`), broken links, and missing cross-references. Record the result in `wiki/log.md`.
 
-> При расхождении вики и кода первичен **код**; страницу нужно поправить.
+> When the wiki and the code disagree, **the code wins**; fix the page.
