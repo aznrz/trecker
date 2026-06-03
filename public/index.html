@@ -345,17 +345,50 @@
 
       <div class="gym-body custom-scrollbar">
         <div class="field">
-          <label for="gymExerciseSelect" class="field-label" data-i18n="exercise">EXERCISE</label>
-          <select id="gymExerciseSelect" class="field-input">
-            <option>Bench Press</option>
-            <option>Barbell Squat</option>
-            <option>Deadlift</option>
-            <option>Lat Pulldown</option>
-            <option>Seated Dumbbell Press</option>
-            <option>Dumbbell Curl</option>
-            <option>Pull-ups</option>
-            <option>Leg Press</option>
+          <div class="flex items-center justify-between">
+            <label for="gymExerciseSelect" class="field-label" data-i18n="exercise">EXERCISE</label>
+            <button type="button" id="gymManageBtn" class="flex items-center gap-1 text-label-sm font-bold text-primary active:scale-95 transition-transform">
+              <span class="material-symbols-outlined text-[16px]">tune</span>
+              <span data-i18n="manage_exercises">Manage</span>
+            </button>
+          </div>
+          <select id="gymExerciseSelect" class="field-input"></select>
+        </div>
+
+        <!-- Менеджер упражнений: редактирование дефолтов существующих + добавление новых -->
+        <div id="gymExerciseManager" class="gym-ex-manager hidden">
+          <div class="flex items-center justify-between mb-2">
+            <p class="field-label block" id="exFormTitle" data-i18n="edit_exercise">EDIT EXERCISE</p>
+            <button type="button" id="exNewBtn" class="flex items-center gap-1 text-label-sm font-bold text-primary active:scale-95 transition-transform">
+              <span class="material-symbols-outlined text-[16px]">add</span>
+              <span data-i18n="new_exercise_btn">New</span>
+            </button>
+          </div>
+          <input type="text" id="exNameInput" class="field-input mb-3" placeholder="Exercise name" />
+          <label for="exMuscleSelect" class="field-label mb-1 block" data-i18n="muscle_group_label">MUSCLE GROUP</label>
+          <select id="exMuscleSelect" class="field-input mb-3">
+            <option value="Грудь">Грудь</option>
+            <option value="Спина">Спина</option>
+            <option value="Ноги">Ноги</option>
+            <option value="Плечи">Плечи</option>
+            <option value="Бицепс">Бицепс</option>
+            <option value="Трицепс">Трицепс</option>
+            <option value="Пресс">Пресс</option>
+            <option value="Кардио">Кардио</option>
+            <option value="Йога">Йога</option>
+            <option value="Разное" selected>Разное</option>
           </select>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <input type="number" id="exDefWeight" class="field-input text-center" min="0" step="any" placeholder="kg" />
+            <input type="number" id="exDefReps" class="field-input text-center" min="0" step="1" placeholder="reps" />
+            <input type="number" id="exDefSets" class="field-input text-center" min="0" step="1" placeholder="sets" />
+            <input type="number" id="exDefCalories" class="field-input text-center" min="0" step="any" placeholder="kcal" />
+          </div>
+          <div class="flex gap-2">
+            <button type="button" id="exCancelBtn" class="btn-ghost flex-1" data-i18n="cancel_btn">CANCEL</button>
+            <button type="button" id="exSaveBtn" class="btn-primary flex-1" data-i18n="save">SAVE</button>
+          </div>
+          <div id="exList" class="flex flex-col gap-1 mt-3"></div>
         </div>
 
         <div class="flex gap-4">
@@ -369,8 +402,19 @@
           </div>
         </div>
 
+        <div class="flex gap-4">
+          <div class="field flex-1">
+            <label for="gymSetsInput" class="field-label" data-i18n="sets_label">SETS</label>
+            <input type="number" id="gymSetsInput" placeholder="1" min="1" step="1" class="field-input text-center text-headline-md" />
+          </div>
+          <div class="field flex-1">
+            <label for="gymCaloriesInput" class="field-label" data-i18n="calories">CALORIES (KCAL)</label>
+            <input type="number" id="gymCaloriesInput" placeholder="0" min="0" step="any" class="field-input text-center text-headline-md" />
+          </div>
+        </div>
+
         <button type="button" class="btn-ghost w-full flex items-center justify-center gap-2" id="gymAddSetBtn">
-          <span class="material-symbols-outlined text-[20px]">add</span> <span data-i18n="add_set">Add Set</span>
+          <span class="material-symbols-outlined text-[20px]">add</span> <span id="gymAddSetLabel" data-i18n="add_set">Add Set</span>
         </button>
 
         <div>

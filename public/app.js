@@ -16,6 +16,9 @@ const state = {
   statsMode: 'habits', // 'habits' | 'gym' — режим вкладки Stats
   selectedColor: '#0059b5',
   gymSets: [], // подходы текущей тренировки (Gym Mode)
+  gymExercises: [], // справочник упражнений с дефолтами (кэш из /api/exercises)
+  gymStatsExerciseId: null, // выбранное упражнение для графика прогресса
+  gymCalDate: null, // выбранный день в календаре тренировок
   lang: (() => {
     try {
       return localStorage.getItem('antigravity-lang') || (navigator.language.startsWith('ru') ? 'ru' : 'en');
@@ -182,6 +185,34 @@ const TRANSLATIONS = {
     no_workouts_yet: 'No workouts yet',
     finish_workout_analytics: 'Finish a workout in Gym Mode to see analytics.',
     failed_load_gym: 'Failed to load gym stats',
+    calories: 'CALORIES (KCAL)',
+    manage_exercises: 'Manage',
+    add_exercise: 'NEW EXERCISE',
+    exercise_name_ph: 'Exercise name',
+    def_weight_ph: 'kg',
+    def_reps_ph: 'reps',
+    def_sets_ph: 'sets',
+    def_calories_ph: 'kcal',
+    save: 'SAVE',
+    exercise_saved: 'Exercise saved',
+    exercise_name_required: 'Enter an exercise name',
+    failed_save_exercise: 'Failed to save exercise',
+    failed_load_exercises: 'Failed to load exercises',
+    edit_exercise: 'EDIT EXERCISE',
+    new_exercise_btn: 'New',
+    add_n_sets: 'Add {n} sets',
+    muscle_group_label: 'MUSCLE GROUP',
+    muscle_distribution: 'Muscle Group Distribution',
+    muscle_distribution_sub: 'Sets per muscle group · last 30 days',
+    sets_count: '{n} sets',
+    kcal_burned: 'kcal burned',
+    workout_calendar: 'Workout Calendar',
+    weight_progress: 'Weight Progress',
+    sets_on_day: 'Sets on {date}',
+    no_sets_on_day: 'No sets on this day',
+    tap_day_hint: 'Tap a highlighted day to see its sets',
+    no_progress_data: 'Not enough data for a chart yet',
+    period_days: 'last {n} days',
 
     // Modals
     new_habit: 'New Habit',
@@ -356,6 +387,34 @@ const TRANSLATIONS = {
     no_workouts_yet: 'Нет тренировок',
     finish_workout_analytics: 'Завершите тренировку в режиме Зал, чтобы увидеть аналитику.',
     failed_load_gym: 'Не удалось загрузить статистику зала',
+    calories: 'КАЛОРИИ (ККАЛ)',
+    manage_exercises: 'Управление',
+    add_exercise: 'НОВОЕ УПРАЖНЕНИЕ',
+    exercise_name_ph: 'Название упражнения',
+    def_weight_ph: 'кг',
+    def_reps_ph: 'повт.',
+    def_sets_ph: 'подх.',
+    def_calories_ph: 'ккал',
+    save: 'СОХРАНИТЬ',
+    exercise_saved: 'Упражнение сохранено',
+    exercise_name_required: 'Введите название упражнения',
+    failed_save_exercise: 'Не удалось сохранить упражнение',
+    failed_load_exercises: 'Не удалось загрузить упражнения',
+    edit_exercise: 'РЕДАКТИРОВАТЬ',
+    new_exercise_btn: 'Новое',
+    add_n_sets: 'Добавить подходов: {n}',
+    muscle_group_label: 'ГРУППА МЫШЦ',
+    muscle_distribution: 'Распределение по группам мышц',
+    muscle_distribution_sub: 'Подходы по группам · за 30 дней',
+    sets_count: 'Подходов: {n}',
+    kcal_burned: 'ккал сожжено',
+    workout_calendar: 'Календарь тренировок',
+    weight_progress: 'Прогресс весов',
+    sets_on_day: 'Подходы за {date}',
+    no_sets_on_day: 'Нет подходов в этот день',
+    tap_day_hint: 'Нажмите на выделенный день, чтобы увидеть подходы',
+    no_progress_data: 'Пока недостаточно данных для графика',
+    period_days: 'за {n} дн.',
 
     // Modals
     new_habit: 'Новая привычка',
@@ -413,6 +472,25 @@ const MOTIVATION = {
     'Мотивация помогает начать, привычка помогает продолжать. Вперед!',
   ]
 };
+
+// Справочник поддерживаемых языков (единая точка для переключателя и автодетекта).
+// Чтобы добавить язык: добавьте запись сюда И одноимённый словарь в TRANSLATIONS (ключ = code).
+// Весь остальной UI (переключатель, t(), автодетект) подхватит его автоматически.
+const LANGUAGES = [
+  { code: 'en', label: 'ENG', name: 'English' },
+  { code: 'ru', label: 'RUS', name: 'Русский' },
+];
+function isSupportedLang(code) { return LANGUAGES.some((l) => l.code === code); }
+// Язык по умолчанию: сохранённый (если поддерживается) → по языку браузера → первый из справочника.
+function detectLang() {
+  try {
+    const saved = localStorage.getItem('antigravity-lang');
+    if (saved && isSupportedLang(saved)) return saved;
+    const nav = (navigator.language || '').slice(0, 2).toLowerCase();
+    if (isSupportedLang(nav)) return nav;
+  } catch (e) {}
+  return LANGUAGES[0].code;
+}
 
 function t(key, replacements = {}) {
   const dict = TRANSLATIONS[state.lang] || TRANSLATIONS.en;
@@ -526,6 +604,13 @@ const api = {
   getStats: (day, days) => fetchJson(`/api/stats?today=${day}&days=${days}`),
   saveWorkout: (day, sets) => fetchJson('/api/workouts', { method: 'POST', body: JSON.stringify({ day, sets }) }),
   getWorkoutStats: (day) => fetchJson(`/api/workouts/stats?today=${day}`),
+  getExercises: () => fetchJson('/api/exercises'),
+  createExercise: (data) => fetchJson('/api/exercises', { method: 'POST', body: JSON.stringify(data) }),
+  updateExercise: (id, data) => fetchJson(`/api/exercises/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteExercise: (id) => fetchJson(`/api/exercises/${id}`, { method: 'DELETE' }),
+  getWorkoutDay: (day) => fetchJson(`/api/workouts/day?day=${day}`),
+  getExerciseProgress: (id) => fetchJson(`/api/workouts/progress?exercise_id=${id}`),
+  getMuscleStats: (day) => fetchJson(`/api/workouts/muscles?today=${day}`),
   getLogs: (activityId) => fetchJson(`/api/activities/${activityId}/logs`),
   deleteLog: (id) => fetchJson(`/api/logs/${id}`, { method: 'DELETE' }),
   updateLog: (id, amount) => fetchJson(`/api/logs/${id}`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
@@ -998,7 +1083,7 @@ async function renderActivityDetail(activityId) {
 
   // Последние логи
   const logSec = document.createElement('section');
-  logSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  logSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 log-section';
   logSec.innerHTML = `<h3 class="text-headline-md font-headline-md mb-6">${t('recent_activity')}</h3>`;
   const logList = document.createElement('div');
   logList.className = 'space-y-4';
@@ -1027,29 +1112,30 @@ async function renderActivityDetail(activityId) {
       const dateFormatted = `${p[2]}.${p[1]}.${p[0]}`;
 
       const item = document.createElement('div');
-      item.className = 'flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20 hover:bg-surface-container transition-colors';
-      
-      const leftSide = document.createElement('div');
-      leftSide.className = 'flex items-center gap-4 min-w-0';
-      leftSide.innerHTML = `
-        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-          <span class="material-symbols-outlined">event_available</span>
-        </div>
-        <div class="min-w-0">
-          <p class="text-label-md font-label-md font-bold truncate">${dateFormatted} <span class="text-xs font-normal text-on-surface-variant/60 ml-1">${timeStr}</span></p>
-          <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? t('check_in') : t('amount_logged')}</p>
-        </div>
+      item.className = 'log-card';
+
+      // Левая зона — иконка (запрет сжатия)
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'log-card__icon w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary';
+      iconWrap.innerHTML = '<span class="material-symbols-outlined">event_available</span>';
+      item.appendChild(iconWrap);
+
+      // Центральная зона — колонка: крупное значение (заголовок) + подпись (подзаголовок)
+      const main = document.createElement('div');
+      main.className = 'log-card__main';
+      const titleHtml = isSimple
+        ? '<span class="material-symbols-outlined text-3xl leading-none" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>'
+        : `<span class="text-headline-md font-headline-md text-primary leading-none">${Number(log.amount.toFixed(1))}</span><span class="text-label-sm text-outline">${esc(act.unit || '')}</span>`;
+      const subMeta = dateFormatted + (timeStr ? ' · ' + timeStr : '');
+      main.innerHTML = `
+        <div class="log-card__title">${titleHtml}</div>
+        <p class="log-card__sub text-label-sm font-label-sm text-on-surface-variant">${isSimple ? t('check_in') : t('amount_logged')} · ${subMeta}</p>
       `;
-      item.appendChild(leftSide);
+      item.appendChild(main);
 
+      // Правая зона — кнопки действий (выравнивание по центру)
       const rightSide = document.createElement('div');
-      rightSide.className = 'flex items-center gap-3 shrink-0';
-
-      if (isSimple) {
-        rightSide.innerHTML += '<span class="material-symbols-outlined text-3xl" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>';
-      } else {
-        rightSide.innerHTML += `<p class="text-headline-md font-headline-md text-primary">${Number(log.amount.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>`;
-      }
+      rightSide.className = 'log-card__actions';
 
       // Кнопка редактирования (только для численных привычек)
       if (!isSimple) {
@@ -1141,7 +1227,7 @@ function languageToggleRow() {
   const seg = document.createElement('div');
   seg.className = 'flex bg-surface-container rounded-xl p-1 border border-outline-variant/40';
   
-  [['en', 'ENG'], ['ru', 'RUS']].forEach(([langCode, langLabel]) => {
+  LANGUAGES.forEach(({ code: langCode, label: langLabel, name: langName }) => {
     const b = document.createElement('button');
     b.type = 'button';
     const active = state.lang === langCode;
@@ -1149,6 +1235,7 @@ function languageToggleRow() {
       ? 'px-3 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-label-md transition-all'
       : 'px-3 py-1.5 rounded-lg text-on-surface-variant text-label-sm font-label-md transition-all';
     b.textContent = langLabel;
+    b.title = langName || langLabel; // полное имя языка — в подсказке
     b.addEventListener('click', () => {
       if (state.lang !== langCode) {
         state.lang = langCode;
@@ -1520,24 +1607,35 @@ async function renderGymStats() {
   }
 
   const tonnage = resp.tonnage || { d7: 0, d14: 0, d30: 0 };
+  const calories = resp.calories || { d7: 0, d14: 0, d30: 0 };
   const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
 
-  // Карточки тоннажа 7 / 14 / 30 дней (неон-свечение из тёмной темы — автоматически)
+  // 1) Карточки период: тоннаж (крупно) + сожжённые калории (мелко) за 7 / 14 / 30 дней
   const tonnageGrid = document.createElement('div');
   tonnageGrid.className = 'card-grid mb-md';
-  [[t('days_btn', { n: 7 }), tonnage.d7], [t('days_btn', { n: 14 }), tonnage.d14], [t('days_btn', { n: 30 }), tonnage.d30]].forEach(([label, val]) => {
+  [[7, tonnage.d7, calories.d7], [14, tonnage.d14, calories.d14], [30, tonnage.d30, calories.d30]].forEach(([n, tn, cal]) => {
     const c = document.createElement('div');
     c.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col items-center justify-center text-center';
     c.innerHTML = `
-      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${t('tonnage_label', { period: label })}</span>
-      <span class="text-headline-xl font-headline-xl text-primary leading-none mt-2">${fmt(val)}</span>
+      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${t('period_days', { n })}</span>
+      <span class="text-headline-xl font-headline-xl text-primary leading-none mt-2">${fmt(tn)}</span>
       <span class="text-label-sm font-label-sm text-on-surface-variant mt-1">${t('kg_lifted')}</span>
+      <span class="text-label-sm font-label-sm text-secondary mt-2">${fmt(cal)} ${t('kcal_burned')}</span>
     `;
     tonnageGrid.appendChild(c);
   });
   viewContainer.appendChild(tonnageGrid);
 
-  // Топ-3 упражнения по объёму (Volume / Max weight / Est 1RM)
+  // 2) Распределение по группам мышц (горизонтальные прогресс-бары)
+  await renderMuscleDistribution();
+
+  // 3) Календарь тренировок (подсветка дней + подходы за выбранный день)
+  renderWorkoutCalendar(resp.days || []);
+
+  // 4) Прогресс весов по упражнению (SVG-линия макс. веса)
+  await renderWeightProgress();
+
+  // 5) Топ-3 упражнения по объёму (Volume / Max weight / Est 1RM)
   const head = document.createElement('h3');
   head.className = 'text-headline-md font-headline-md mb-md';
   head.textContent = t('top_exercises');
@@ -1563,6 +1661,237 @@ async function renderGymStats() {
     grid.appendChild(c);
   });
   viewContainer.appendChild(grid);
+}
+
+// Распределение по группам мышц — список с горизонтальными прогресс-барами
+async function renderMuscleDistribution() {
+  let data;
+  try { data = await api.getMuscleStats(localDay()); } catch (e) { return; }
+  const muscles = (data && data.muscles) || [];
+  if (!muscles.length) return;
+  const maxSets = Math.max.apply(null, muscles.map((m) => m.sets || 0)) || 1;
+
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-1';
+  head.textContent = t('muscle_distribution');
+  viewContainer.appendChild(head);
+  const sub = document.createElement('p');
+  sub.className = 'text-label-sm font-label-sm text-on-surface-variant mb-md';
+  sub.textContent = t('muscle_distribution_sub');
+  viewContainer.appendChild(sub);
+
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md flex flex-col gap-4';
+  muscles.forEach((m) => {
+    const pct = Math.max(6, Math.round((m.sets / maxSets) * 100));
+    const row = document.createElement('div');
+    row.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-label-md font-label-md font-bold">${esc(m.muscle)}</span>
+        <span class="text-label-sm font-label-sm text-on-surface-variant">${t('sets_count', { n: m.sets })}</span>
+      </div>
+      <div class="h-2 rounded-full bg-surface-container-high overflow-hidden">
+        <div class="h-full rounded-full bg-primary" style="width:${pct}%"></div>
+      </div>
+    `;
+    card.appendChild(row);
+  });
+  viewContainer.appendChild(card);
+}
+
+// Календарь тренировок текущего месяца: подсветка дней + подходы за выбранный день
+function renderWorkoutCalendar(days) {
+  const daySet = new Set(days);
+  if (!state.gymCalMonth) state.gymCalMonth = localDay().slice(0, 7); // YYYY-MM
+
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-md';
+  head.textContent = t('workout_calendar');
+  viewContainer.appendChild(head);
+
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  viewContainer.appendChild(card);
+  const dayDetail = document.createElement('div');
+  dayDetail.className = 'mt-md';
+
+  function shiftMonth(delta) {
+    let [y, m] = state.gymCalMonth.split('-').map(Number);
+    m += delta;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    state.gymCalMonth = `${y}-${String(m).padStart(2, '0')}`;
+    draw();
+  }
+
+  async function showDay(ds) {
+    dayDetail.textContent = '';
+    let data;
+    try { data = await api.getWorkoutDay(ds); } catch (e) { return; }
+    const sets = (data && data.sets) || [];
+    const p = ds.split('-');
+    const dateFormatted = `${p[2]}.${p[1]}.${p[0]}`;
+    const title = document.createElement('p');
+    title.className = 'text-label-md font-label-md font-bold mb-2';
+    title.textContent = t('sets_on_day', { date: dateFormatted });
+    dayDetail.appendChild(title);
+    if (!sets.length) {
+      const e = document.createElement('p');
+      e.className = 'text-label-sm font-label-sm text-on-surface-variant';
+      e.textContent = t('no_sets_on_day');
+      dayDetail.appendChild(e);
+      return;
+    }
+    const kg = state.lang === 'ru' ? 'кг' : 'kg';
+    sets.forEach((s) => {
+      const r = document.createElement('div');
+      r.className = 'gym-set-row';
+      r.innerHTML = `
+        <span class="text-label-md font-label-md font-bold truncate min-w-0">${esc(translateExercise(s.exercise))}</span>
+        <span class="text-label-sm font-label-sm text-on-surface-variant shrink-0">${s.weight} ${kg} × ${s.reps}</span>
+      `;
+      dayDetail.appendChild(r);
+    });
+  }
+
+  function draw() {
+    card.textContent = '';
+    const [y, m] = state.gymCalMonth.split('-').map(Number);
+    const nav = document.createElement('div');
+    nav.className = 'flex items-center justify-between mb-md';
+    const title = new Date(y, m - 1, 1).toLocaleDateString(state.lang === 'ru' ? 'ru-RU' : 'en-US', { month: 'long', year: 'numeric' });
+    nav.innerHTML = `
+      <button type="button" class="icon-btn" data-nav="-1"><span class="material-symbols-outlined">chevron_left</span></button>
+      <span class="text-label-md font-label-md font-bold capitalize">${esc(title)}</span>
+      <button type="button" class="icon-btn" data-nav="1"><span class="material-symbols-outlined">chevron_right</span></button>
+    `;
+    nav.querySelector('[data-nav="-1"]').addEventListener('click', () => shiftMonth(-1));
+    nav.querySelector('[data-nav="1"]').addEventListener('click', () => shiftMonth(1));
+    card.appendChild(nav);
+
+    const grid = document.createElement('div');
+    grid.className = 'gym-cal';
+    const dow = state.lang === 'ru' ? ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    dow.forEach((d) => {
+      const h = document.createElement('div');
+      h.className = 'gym-cal__dow';
+      h.textContent = d;
+      grid.appendChild(h);
+    });
+    const first = new Date(y, m - 1, 1);
+    const startOffset = (first.getDay() + 6) % 7; // понедельник — первый
+    for (let i = 0; i < startOffset; i++) grid.appendChild(document.createElement('div'));
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const todayStr = localDay();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const has = daySet.has(ds);
+      const cell = document.createElement(has ? 'button' : 'div');
+      cell.className = 'gym-cal__day' + (has ? ' gym-cal__day--active' : '') + (ds === todayStr ? ' gym-cal__day--today' : '');
+      cell.textContent = d;
+      if (has) { cell.type = 'button'; cell.addEventListener('click', () => showDay(ds)); }
+      grid.appendChild(cell);
+    }
+    card.appendChild(grid);
+    card.appendChild(dayDetail);
+  }
+
+  draw();
+  dayDetail.innerHTML = `<p class="text-label-sm font-label-sm text-on-surface-variant text-center">${t('tap_day_hint')}</p>`;
+}
+
+// Прогресс весов: выбор упражнения + SVG-линия максимального рабочего веса по дням
+async function renderWeightProgress() {
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-md';
+  head.textContent = t('weight_progress');
+  viewContainer.appendChild(head);
+
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  viewContainer.appendChild(card);
+
+  if (!state.gymExercises || !state.gymExercises.length) {
+    try { const d = await api.getExercises(); state.gymExercises = d.exercises || []; } catch (e) {}
+  }
+  if (!state.gymExercises.length) return;
+
+  const select = document.createElement('select');
+  select.className = 'field-input mb-md';
+  state.gymExercises.forEach((ex) => {
+    const o = document.createElement('option');
+    o.value = String(ex.id);
+    o.textContent = translateExercise(ex.name);
+    select.appendChild(o);
+  });
+  card.appendChild(select);
+  const chartWrap = document.createElement('div');
+  card.appendChild(chartWrap);
+
+  async function drawChart(exId) {
+    chartWrap.textContent = '';
+    let data;
+    try { data = await api.getExerciseProgress(exId); } catch (e) { return; }
+    const points = (data && data.points) || [];
+    if (points.length < 2) {
+      const e = document.createElement('p');
+      e.className = 'text-label-sm font-label-sm text-on-surface-variant text-center py-6';
+      e.textContent = t('no_progress_data');
+      chartWrap.appendChild(e);
+      return;
+    }
+    chartWrap.appendChild(buildLineChart(points));
+  }
+
+  select.addEventListener('change', () => { state.gymStatsExerciseId = Number(select.value); drawChart(select.value); });
+  const initId = state.gymStatsExerciseId && state.gymExercises.some((e) => e.id === state.gymStatsExerciseId)
+    ? state.gymStatsExerciseId : state.gymExercises[0].id;
+  select.value = String(initId);
+  state.gymStatsExerciseId = Number(initId);
+  drawChart(initId);
+}
+
+// Простая SVG-линия по точкам [{day, maxWeight}] (CSS-переменные через inline style)
+function buildLineChart(points) {
+  const W = 320, H = 140, padL = 8, padR = 8, padT = 14, padB = 22;
+  const vals = points.map((p) => Number(p.maxWeight) || 0);
+  const max = Math.max.apply(null, vals);
+  const min = Math.min.apply(null, vals);
+  const range = (max - min) || 1;
+  const n = points.length;
+  const xAt = (i) => padL + (i / (n - 1)) * (W - padL - padR);
+  const yAt = (v) => padT + (1 - (v - min) / range) * (H - padT - padB);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('class', 'w-full h-auto');
+
+  const poly = document.createElementNS(ns, 'polyline');
+  poly.setAttribute('points', points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(vals[i]).toFixed(1)}`).join(' '));
+  poly.setAttribute('style', 'fill:none;stroke:rgb(var(--primary));stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round');
+  svg.appendChild(poly);
+
+  points.forEach((p, i) => {
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', xAt(i).toFixed(1));
+    c.setAttribute('cy', yAt(vals[i]).toFixed(1));
+    c.setAttribute('r', '2.6');
+    c.setAttribute('style', 'fill:rgb(var(--primary))');
+    svg.appendChild(c);
+  });
+  // подписи min/max веса
+  const kg = state.lang === 'ru' ? 'кг' : 'kg';
+  const lblMax = document.createElementNS(ns, 'text');
+  lblMax.setAttribute('x', '2'); lblMax.setAttribute('y', (padT - 4).toFixed(1));
+  lblMax.setAttribute('style', 'fill:rgb(var(--on-surface-variant));font-size:10px');
+  lblMax.textContent = `${Math.round(max)} ${kg}`;
+  svg.appendChild(lblMax);
+  const lblMin = document.createElementNS(ns, 'text');
+  lblMin.setAttribute('x', '2'); lblMin.setAttribute('y', (H - 6).toFixed(1));
+  lblMin.setAttribute('style', 'fill:rgb(var(--on-surface-variant));font-size:10px');
+  lblMin.textContent = `${Math.round(min)} ${kg}`;
+  svg.appendChild(lblMin);
+  return svg;
 }
 
 // ==========================================
@@ -1873,9 +2202,29 @@ const gymModal = document.getElementById('gymModal');
 const gymExerciseSelect = document.getElementById('gymExerciseSelect');
 const gymWeightInput = document.getElementById('gymWeightInput');
 const gymRepsInput = document.getElementById('gymRepsInput');
+const gymCaloriesInput = document.getElementById('gymCaloriesInput');
 const gymSetList = document.getElementById('gymSetList');
 const gymSetCount = document.getElementById('gymSetCount');
+const gymManageBtn = document.getElementById('gymManageBtn');
+const gymExerciseManager = document.getElementById('gymExerciseManager');
+const exNameInput = document.getElementById('exNameInput');
+const exDefWeight = document.getElementById('exDefWeight');
+const exDefReps = document.getElementById('exDefReps');
+const exDefSets = document.getElementById('exDefSets');
+const exDefCalories = document.getElementById('exDefCalories');
+const exSaveBtn = document.getElementById('exSaveBtn');
+const exCancelBtn = document.getElementById('exCancelBtn');
+const exMuscleSelect = document.getElementById('exMuscleSelect');
+const gymSetsInput = document.getElementById('gymSetsInput');
+const gymAddSetLabel = document.getElementById('gymAddSetLabel');
+const exList = document.getElementById('exList');
+const exNewBtn = document.getElementById('exNewBtn');
+const exFormTitle = document.getElementById('exFormTitle');
 
+// id упражнения, открытого в менеджере на редактирование (null = режим создания нового)
+let editingExerciseId = null;
+
+// Базовые имена (для перевода засеянного справочника на русский)
 const GYM_EXERCISES = [
   'Bench Press',
   'Barbell Squat',
@@ -1887,24 +2236,168 @@ const GYM_EXERCISES = [
   'Leg Press'
 ];
 
-function openGymModal() {
+// Локализуем плейсхолдеры менеджера упражнений
+function syncGymPlaceholders() {
+  if (exNameInput) exNameInput.placeholder = t('exercise_name_ph');
+  if (exDefWeight) exDefWeight.placeholder = t('def_weight_ph');
+  if (exDefReps) exDefReps.placeholder = t('def_reps_ph');
+  if (exDefSets) exDefSets.placeholder = t('def_sets_ph');
+  if (exDefCalories) exDefCalories.placeholder = t('def_calories_ph');
+}
+
+// Наполняем <select> из справочника (value = id упражнения)
+function populateExerciseSelect(selectId) {
+  gymExerciseSelect.textContent = '';
+  state.gymExercises.forEach((ex) => {
+    const opt = document.createElement('option');
+    opt.value = String(ex.id);
+    opt.textContent = translateExercise(ex.name);
+    gymExerciseSelect.appendChild(opt);
+  });
+  if (selectId != null) gymExerciseSelect.value = String(selectId);
+}
+
+// Подставляем дефолтные значения выбранного упражнения (пользователь может переписать)
+function applyExerciseDefaults() {
+  const ex = state.gymExercises.find((e) => String(e.id) === gymExerciseSelect.value);
+  if (!ex) return;
+  gymWeightInput.value = ex.default_weight != null ? ex.default_weight : '';
+  gymRepsInput.value = ex.default_reps != null ? ex.default_reps : '';
+  gymCaloriesInput.value = ex.default_calories != null ? ex.default_calories : '';
+  gymSetsInput.value = ex.default_sets != null ? ex.default_sets : '';
+  updateAddSetLabel();
+}
+
+// Сколько подходов добавит кнопка (1..20)
+function getSetsCount() {
+  let n = parseInt(gymSetsInput.value);
+  if (!isFinite(n) || n < 1) n = 1;
+  return Math.min(n, 20);
+}
+
+// Текст кнопки добавления — «Добавить подход» или «Добавить подходов: N»
+function updateAddSetLabel() {
+  if (!gymAddSetLabel) return;
+  const n = getSetsCount();
+  gymAddSetLabel.textContent = n > 1 ? t('add_n_sets', { n }) : t('add_set');
+}
+
+async function loadGymExercises(selectId) {
+  try {
+    const data = await api.getExercises();
+    state.gymExercises = data.exercises || [];
+  } catch (err) {
+    state.gymExercises = [];
+    showToast(t('failed_load_exercises'), 'error');
+  }
+  populateExerciseSelect(selectId);
+  applyExerciseDefaults();
+}
+
+async function openGymModal() {
   state.gymSets = [];
   gymWeightInput.value = '';
   gymRepsInput.value = '';
-  
-  // Populate exercise select dynamically
-  gymExerciseSelect.textContent = '';
-  GYM_EXERCISES.forEach((ex) => {
-    const opt = document.createElement('option');
-    opt.value = ex;
-    opt.textContent = translateExercise(ex);
-    gymExerciseSelect.appendChild(opt);
-  });
-
+  gymCaloriesInput.value = '';
+  gymSetsInput.value = '';
+  hideExerciseManager();
+  syncGymPlaceholders();
+  updateAddSetLabel();
   renderGymSets();
   gymModal.classList.remove('hidden');
+  await loadGymExercises();
 }
 function closeGymModal() { gymModal.classList.add('hidden'); }
+
+// ---- менеджер упражнений (редактирование дефолтов существующих + добавление новых) ----
+
+// Заполняем форму менеджера значениями упражнения (или очищаем для нового)
+function fillExerciseForm(ex) {
+  if (ex) {
+    editingExerciseId = ex.id;
+    exNameInput.value = ex.name || '';
+    exDefWeight.value = ex.default_weight != null ? ex.default_weight : '';
+    exDefReps.value = ex.default_reps != null ? ex.default_reps : '';
+    exDefSets.value = ex.default_sets != null ? ex.default_sets : '';
+    exDefCalories.value = ex.default_calories != null ? ex.default_calories : '';
+    exMuscleSelect.value = ex.target_muscle || 'Разное';
+    exFormTitle.textContent = t('edit_exercise');
+  } else {
+    editingExerciseId = null;
+    exNameInput.value = '';
+    exDefWeight.value = '';
+    exDefReps.value = '';
+    exDefSets.value = '';
+    exDefCalories.value = '';
+    exMuscleSelect.value = 'Разное';
+    exFormTitle.textContent = t('add_exercise');
+  }
+}
+
+// Список упражнений в менеджере — клик загружает в форму на редактирование
+function renderExerciseList() {
+  exList.textContent = '';
+  const kg = state.lang === 'ru' ? 'кг' : 'kg';
+  state.gymExercises.forEach((ex) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'flex items-center justify-between gap-2 w-full text-left px-3 py-2 rounded-xl hover:bg-primary/5 active:scale-[0.99] transition-all'
+      + (String(ex.id) === String(editingExerciseId) ? ' bg-primary/10' : '');
+    const sets = ex.default_sets != null ? ex.default_sets : '–';
+    const w = ex.default_weight != null ? ex.default_weight : '–';
+    const reps = ex.default_reps != null ? ex.default_reps : '–';
+    const muscle = ex.target_muscle && ex.target_muscle !== 'Разное' ? ex.target_muscle : '';
+    row.innerHTML = `
+      <span class="flex items-center gap-2 min-w-0">
+        <span class="text-label-md font-label-md font-bold truncate min-w-0">${esc(translateExercise(ex.name))}</span>
+        ${muscle ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">${esc(muscle)}</span>` : ''}
+      </span>
+      <span class="text-label-sm font-label-sm text-on-surface-variant shrink-0">${sets}×${w}${kg} · ${reps}</span>
+    `;
+    row.addEventListener('click', () => { fillExerciseForm(ex); renderExerciseList(); exNameInput.focus(); });
+    exList.appendChild(row);
+  });
+}
+
+// Открываем менеджер: по умолчанию редактируем текущее выбранное упражнение
+function showExerciseManager() {
+  syncGymPlaceholders();
+  const current = state.gymExercises.find((e) => String(e.id) === gymExerciseSelect.value);
+  fillExerciseForm(current || null);
+  renderExerciseList();
+  gymExerciseManager.classList.remove('hidden');
+  exNameInput.focus();
+}
+function hideExerciseManager() { gymExerciseManager.classList.add('hidden'); }
+function toggleExerciseManager() {
+  if (gymExerciseManager.classList.contains('hidden')) showExerciseManager();
+  else hideExerciseManager();
+}
+
+// Сохранение: создаём новое или обновляем редактируемое упражнение
+async function saveExercise() {
+  const name = exNameInput.value.trim();
+  if (!name) { showToast(t('exercise_name_required'), 'error'); return; }
+  const payload = {
+    name,
+    default_weight: exDefWeight.value === '' ? null : Number(exDefWeight.value),
+    default_reps: exDefReps.value === '' ? null : parseInt(exDefReps.value),
+    default_sets: exDefSets.value === '' ? null : parseInt(exDefSets.value),
+    default_calories: exDefCalories.value === '' ? null : Number(exDefCalories.value),
+    target_muscle: exMuscleSelect.value,
+  };
+  try {
+    const res = editingExerciseId
+      ? await api.updateExercise(editingExerciseId, payload)
+      : await api.createExercise(payload);
+    hideExerciseManager();
+    showToast(t('exercise_saved'));
+    const savedId = res && res.exercise ? res.exercise.id : editingExerciseId;
+    await loadGymExercises(savedId); // перезагрузим справочник и выберем сохранённое
+  } catch (err) {
+    showToast(t('failed_save_exercise'), 'error');
+  }
+}
 
 function renderGymSets() {
   gymSetList.textContent = '';
@@ -1916,15 +2409,18 @@ function renderGymSets() {
     gymSetList.appendChild(empty);
     return;
   }
+  const kg = state.lang === 'ru' ? 'кг' : 'kg';
+  const kcal = state.lang === 'ru' ? 'ккал' : 'kcal';
   state.gymSets.forEach((s, i) => {
     const row = document.createElement('div');
     row.className = 'gym-set-row';
+    const calStr = (s.calories != null && s.calories > 0) ? ` · ${Number(s.calories)} ${kcal}` : '';
     row.innerHTML = `
       <div class="flex items-center gap-3 min-w-0">
         <span class="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-label-sm font-bold shrink-0">${i + 1}</span>
         <div class="min-w-0">
           <p class="text-label-md font-label-md font-bold truncate">${esc(translateExercise(s.exercise))}</p>
-          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} ${state.lang === 'ru' ? 'кг' : 'kg'} × ${s.reps}</p>
+          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} ${kg} × ${s.reps}${calStr}</p>
         </div>
       </div>
     `;
@@ -1939,17 +2435,22 @@ function renderGymSets() {
 }
 
 function addGymSet() {
-  const exercise = gymExerciseSelect.value;
+  const ex = state.gymExercises.find((e) => String(e.id) === gymExerciseSelect.value);
+  const exerciseId = ex ? ex.id : null;
+  const exerciseName = ex ? ex.name : gymExerciseSelect.value;
   const weight = parseFloat(gymWeightInput.value);
   const reps = parseInt(gymRepsInput.value);
   if (!isFinite(weight) || weight < 0 || !isFinite(reps) || reps <= 0) {
     showToast(t('enter_weight_reps'), 'error');
     return;
   }
-  state.gymSets.push({ exercise, weight: Number(weight), reps });
-  gymRepsInput.value = '';
+  const calRaw = parseFloat(gymCaloriesInput.value);
+  const calories = (isFinite(calRaw) && calRaw >= 0) ? Number(calRaw) : null;
+  const nSets = getSetsCount();
+  for (let k = 0; k < nSets; k++) {
+    state.gymSets.push({ exercise: exerciseName, exercise_id: exerciseId, weight: Number(weight), reps, calories });
+  }
   renderGymSets();
-  gymRepsInput.focus();
 }
 
 async function finishGym() {
@@ -2059,6 +2560,15 @@ on('gymModeBtnSide', 'click', openGymModal);
 on('closeGymBtn', 'click', closeGymModal);
 on('gymAddSetBtn', 'click', addGymSet);
 on('gymFinishBtn', 'click', finishGym);
+// Автозаполнение полей дефолтными значениями выбранного упражнения
+on('gymExerciseSelect', 'change', applyExerciseDefaults);
+// Кол-во подходов влияет на текст кнопки добавления
+on('gymSetsInput', 'input', updateAddSetLabel);
+// Менеджер упражнений
+on('gymManageBtn', 'click', toggleExerciseManager);
+on('exSaveBtn', 'click', saveExercise);
+on('exCancelBtn', 'click', hideExerciseManager);
+on('exNewBtn', 'click', () => { fillExerciseForm(null); renderExerciseList(); exNameInput.focus(); });
 
 // Колокольчик уведомлений (мобильная шапка + сайдбар)
 on('notifBtn', 'click', openNotifModal);

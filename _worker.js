@@ -82,12 +82,28 @@ async function handleApi(request, env, url) {
 
   if (path === "/stats" && method === "GET") return stats(env, uid, url);
 
+  // Gym Mode: справочник упражнений (дефолтные значения)
+  if (path === "/exercises" && method === "GET") return listExercises(env, uid);
+  if (path === "/exercises" && method === "POST") {
+    if (!(await rateOk(env, "api", request, 120, 60))) return json({ error: "Слишком часто, подождите немного" }, 429);
+    return createExercise(request, env, uid);
+  }
+  const exMatch = path.match(/^\/exercises\/(\d+)$/);
+  if (exMatch) {
+    const id = +exMatch[1];
+    if (method === "PATCH") return updateExercise(request, env, uid, id);
+    if (method === "DELETE") return deleteExercise(env, uid, id);
+  }
+
   // Gym Mode: сохранение тренировки и агрегированная аналитика
   if (path === "/workouts" && method === "POST") {
     if (!(await rateOk(env, "api", request, 120, 60))) return json({ error: "Слишком часто, подождите немного" }, 429);
     return saveWorkout(request, env, uid);
   }
   if (path === "/workouts/stats" && method === "GET") return workoutStats(env, uid, url);
+  if (path === "/workouts/day" && method === "GET") return workoutDay(env, uid, url);
+  if (path === "/workouts/progress" && method === "GET") return exerciseProgress(env, uid, url);
+  if (path === "/workouts/muscles" && method === "GET") return muscleStats(env, uid, url);
 
   return json({ error: "not found" }, 404);
 }
@@ -270,6 +286,9 @@ async function seedDefaultActivities(env, uid) {
     ["Подтягивания", "повторы", "#0059b5", 50, "numeric", 5, 15, 25, 0],
     ["Чтение", "страниц", "#006e1c", 20, "numeric", 5, 10, 25, 1],
     ["Медитация", "", "#8c21c0", 1, "simple", null, null, null, 2],
+    ["☕ День без кофе", "", "#c2410c", 1, "simple", null, null, null, 3],
+    ["🧘 Йога", "", "#0e7490", 1, "simple", null, null, null, 4],
+    ["🏋️ Приседания", "повторы", "#be185d", 50, "numeric", 10, 20, 30, 5],
   ];
   for (const [name, unit, color, goal, type, qa1, qa2, qa3, sort] of defaults) {
     await env.DB.prepare(
@@ -444,9 +463,108 @@ async function stats(env, uid, url) {
   return json({ today, days, activities });
 }
 
+// ---------- exercises (Gym Mode: справочник) ----------
+
+// Базовый набор упражнений с реалистичными значениями по умолчанию
+// (sets / reps / weight кг / calories ккал) — для автосева справочника.
+const BASE_EXERCISES = [
+  { name: "Bench Press",           sets: 4, reps: 8,  weight: 40, calories: 30, muscle: "Грудь" },
+  { name: "Barbell Squat",         sets: 4, reps: 8,  weight: 50, calories: 40, muscle: "Ноги" },
+  { name: "Deadlift",              sets: 3, reps: 5,  weight: 60, calories: 45, muscle: "Спина" },
+  { name: "Lat Pulldown",          sets: 4, reps: 10, weight: 35, calories: 25, muscle: "Спина" },
+  { name: "Seated Dumbbell Press", sets: 4, reps: 10, weight: 20, calories: 25, muscle: "Плечи" },
+  { name: "Dumbbell Curl",         sets: 3, reps: 12, weight: 12, calories: 15, muscle: "Бицепс" },
+  { name: "Pull-ups",              sets: 4, reps: 8,  weight: 0,  calories: 30, muscle: "Спина" },
+  { name: "Leg Press",             sets: 4, reps: 12, weight: 80, calories: 35, muscle: "Ноги" },
+];
+
+// Допустимые группы мышц (строго фиксированный список). Дефолт — "Разное".
+const MUSCLES = ["Грудь", "Спина", "Ноги", "Плечи", "Бицепс", "Трицепс", "Пресс", "Кардио", "Йога", "Разное"];
+function muscleOrDefault(v) {
+  return MUSCLES.includes(v) ? v : "Разное";
+}
+
+const EX_COLS = "id, name, default_sets, default_reps, default_weight, default_calories, target_muscle";
+
+async function listExercises(env, uid) {
+  const cnt = (await env.DB.prepare("SELECT COUNT(*) c FROM exercises WHERE user_id=?").bind(uid).first()).c;
+  if (!cnt) {
+    // Пустой справочник — засеваем 8 базовых упражнений с дефолтами
+    const now = new Date().toISOString();
+    for (const ex of BASE_EXERCISES) {
+      await env.DB.prepare(
+        `INSERT INTO exercises (user_id, name, default_sets, default_reps, default_weight, default_calories, target_muscle, created_at)
+         VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(user_id, name) DO NOTHING`
+      ).bind(uid, ex.name, ex.sets, ex.reps, ex.weight, ex.calories, ex.muscle, now).run();
+    }
+  } else {
+    // Бэкфилл: у базовых упражнений со старыми NULL-дефолтами проставляем значения,
+    // не затирая то, что пользователь уже задал сам (COALESCE), и не пересоздавая удалённые.
+    // Группу мышц проставляем только если она ещё дефолтная ('Разное'/NULL).
+    for (const ex of BASE_EXERCISES) {
+      await env.DB.prepare(
+        `UPDATE exercises SET
+           default_sets     = COALESCE(default_sets, ?),
+           default_reps     = COALESCE(default_reps, ?),
+           default_weight   = COALESCE(default_weight, ?),
+           default_calories = COALESCE(default_calories, ?),
+           target_muscle    = CASE WHEN target_muscle IS NULL OR target_muscle='Разное' THEN ? ELSE target_muscle END
+         WHERE user_id=? AND name=?`
+      ).bind(ex.sets, ex.reps, ex.weight, ex.calories, ex.muscle, uid, ex.name).run();
+    }
+  }
+  const rows = (await env.DB.prepare(
+    `SELECT ${EX_COLS} FROM exercises WHERE user_id=? ORDER BY name`
+  ).bind(uid).all()).results;
+  return json({ exercises: rows });
+}
+
+async function createExercise(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const name = (b.name || "").trim();
+  if (!name) return json({ error: "Нужно название" }, 400);
+  const now = new Date().toISOString();
+  const row = await env.DB.prepare(
+    `INSERT INTO exercises (user_id, name, default_sets, default_reps, default_weight, default_calories, target_muscle, created_at)
+     VALUES (?,?,?,?,?,?,?,?)
+     ON CONFLICT(user_id, name) DO UPDATE SET
+       default_sets=excluded.default_sets,
+       default_reps=excluded.default_reps,
+       default_weight=excluded.default_weight,
+       default_calories=excluded.default_calories,
+       target_muscle=excluded.target_muscle
+     RETURNING ${EX_COLS}`
+  ).bind(uid, name, intOrNull(b.default_sets), intOrNull(b.default_reps), numOrNull(b.default_weight), numOrNull(b.default_calories), muscleOrDefault(b.target_muscle), now).first();
+  return json({ exercise: row });
+}
+
+async function updateExercise(request, env, uid, id) {
+  const b = await request.json().catch(() => ({}));
+  const owned = await env.DB.prepare("SELECT id FROM exercises WHERE id=? AND user_id=?").bind(id, uid).first();
+  if (!owned) return json({ error: "not found" }, 404);
+  const name = (b.name || "").trim();
+  if (!name) return json({ error: "Нужно название" }, 400);
+  try {
+    await env.DB.prepare(
+      "UPDATE exercises SET name=?, default_sets=?, default_reps=?, default_weight=?, default_calories=?, target_muscle=? WHERE id=? AND user_id=?"
+    ).bind(name, intOrNull(b.default_sets), intOrNull(b.default_reps), numOrNull(b.default_weight), numOrNull(b.default_calories), muscleOrDefault(b.target_muscle), id, uid).run();
+  } catch (e) {
+    // нарушение UNIQUE(user_id, name) — упражнение с таким именем уже есть
+    return json({ error: "Упражнение с таким названием уже существует" }, 409);
+  }
+  const row = await env.DB.prepare(`SELECT ${EX_COLS} FROM exercises WHERE id=? AND user_id=?`).bind(id, uid).first();
+  return json({ exercise: row });
+}
+
+async function deleteExercise(env, uid, id) {
+  await env.DB.prepare("DELETE FROM workout_sets WHERE exercise_id=? AND user_id=?").bind(id, uid).run();
+  await env.DB.prepare("DELETE FROM exercises WHERE id=? AND user_id=?").bind(id, uid).run();
+  return json({ ok: true });
+}
+
 // ---------- workouts (Gym Mode) ----------
 
-// Сохранение тренировки: upsert упражнений + запись подходов.
+// Сохранение тренировки: upsert упражнений + запись подходов (вес, повторы, калории).
 async function saveWorkout(request, env, uid) {
   const b = await request.json().catch(() => ({}));
   const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
@@ -457,42 +575,56 @@ async function saveWorkout(request, env, uid) {
     const name = (s && s.exercise ? String(s.exercise) : "").trim();
     const weight = Number(s && s.weight);
     const reps = Math.trunc(Number(s && s.reps));
+    const calories = numOrNull(s && s.calories);
     if (!name || !isFinite(weight) || weight < 0 || !isFinite(reps) || reps <= 0) continue;
-    // upsert упражнения: вернём id независимо от того, было оно или создано
-    const ex = await env.DB.prepare(
-      "INSERT INTO exercises (user_id, name, created_at) VALUES (?,?,?) ON CONFLICT(user_id, name) DO UPDATE SET name=name RETURNING id"
-    ).bind(uid, name, now).first();
+    // Если фронт прислал exercise_id и он принадлежит пользователю — используем его,
+    // иначе upsert упражнения по имени (обратная совместимость).
+    let exId = null;
+    const sid = Math.trunc(Number(s && s.exercise_id));
+    if (isFinite(sid) && sid > 0) {
+      const owned = await env.DB.prepare("SELECT id FROM exercises WHERE id=? AND user_id=?").bind(sid, uid).first();
+      if (owned) exId = owned.id;
+    }
+    if (!exId) {
+      const ex = await env.DB.prepare(
+        "INSERT INTO exercises (user_id, name, created_at) VALUES (?,?,?) ON CONFLICT(user_id, name) DO UPDATE SET name=name RETURNING id"
+      ).bind(uid, name, now).first();
+      exId = ex.id;
+    }
     await env.DB.prepare(
-      "INSERT INTO workout_sets (user_id, exercise_id, weight, reps, day, logged_at) VALUES (?,?,?,?,?,?)"
-    ).bind(uid, ex.id, weight, reps, day, now).run();
+      "INSERT INTO workout_sets (user_id, exercise_id, weight, reps, calories, day, logged_at) VALUES (?,?,?,?,?,?,?)"
+    ).bind(uid, exId, weight, reps, calories, day, now).run();
     count++;
   }
   if (!count) return json({ error: "Нет валидных подходов" }, 400);
   return json({ ok: true, count });
 }
 
-// Агрегированная аналитика: тоннаж за 7/14/30 дней + метрики по упражнениям (all-time).
+// Агрегированная аналитика: тоннаж + калории за 7/14/30 дней,
+// метрики по упражнениям (all-time) и список дней тренировок для календаря.
 async function workoutStats(env, uid, url) {
   const today = isValidDay(url.searchParams.get("today")) ? url.searchParams.get("today") : new Date().toISOString().slice(0, 10);
   const from30 = addDays(today, -29);
   const from14 = addDays(today, -13);
   const from7 = addDays(today, -6);
 
-  // Тоннаж (SUM(weight*reps)) по дням за 30 дней → агрегируем в 7/14/30 в JS
+  // Тоннаж (SUM(weight*reps)) и калории по дням за 30 дней → агрегируем в 7/14/30 в JS
   const dayRows = (await env.DB.prepare(
-    "SELECT day, SUM(weight*reps) v FROM workout_sets WHERE user_id=? AND day>=? AND day<=? GROUP BY day"
+    "SELECT day, SUM(weight*reps) v, SUM(COALESCE(calories,0)) c FROM workout_sets WHERE user_id=? AND day>=? AND day<=? GROUP BY day"
   ).bind(uid, from30, today).all()).results;
   let d7 = 0, d14 = 0, d30 = 0;
+  let c7 = 0, c14 = 0, c30 = 0;
   for (const r of dayRows) {
-    const v = r.v || 0;
-    d30 += v;
-    if (r.day >= from14) d14 += v;
-    if (r.day >= from7) d7 += v;
+    const v = r.v || 0, c = r.c || 0;
+    d30 += v; c30 += c;
+    if (r.day >= from14) { d14 += v; c14 += c; }
+    if (r.day >= from7) { d7 += v; c7 += c; }
   }
 
   // По упражнениям за всё время: объём, макс. вес, оценка 1RM (Эпли: weight*(1+reps/30))
   const exRows = (await env.DB.prepare(
-    `SELECT e.name AS name,
+    `SELECT e.id AS id,
+            e.name AS name,
             SUM(w.weight * w.reps) AS volume,
             MAX(w.weight) AS maxWeight,
             MAX(w.weight * (1 + w.reps / 30.0)) AS est1rm,
@@ -505,12 +637,64 @@ async function workoutStats(env, uid, url) {
       ORDER BY volume DESC`
   ).bind(uid).all()).results;
 
+  // Дни с тренировками за ~120 дней — для подсветки в календаре
+  const from120 = addDays(today, -119);
+  const days = (await env.DB.prepare(
+    "SELECT DISTINCT day FROM workout_sets WHERE user_id=? AND day>=? AND day<=? ORDER BY day"
+  ).bind(uid, from120, today).all()).results.map((r) => r.day);
+
   return json({
     today,
     tonnage: { d7, d14, d30 },
+    calories: { d7: c7, d14: c14, d30: c30 },
+    days,
     exercises: exRows,
     top: exRows.slice(0, 3),
   });
+}
+
+// Подходы за конкретный день (клик по календарю): JOIN с именем упражнения.
+async function workoutDay(env, uid, url) {
+  const day = isValidDay(url.searchParams.get("day")) ? url.searchParams.get("day") : new Date().toISOString().slice(0, 10);
+  const sets = (await env.DB.prepare(
+    `SELECT w.id, e.name AS exercise, w.exercise_id, w.weight, w.reps, w.calories, w.logged_at
+       FROM workout_sets w
+       JOIN exercises e ON e.id = w.exercise_id
+      WHERE w.user_id = ? AND w.day = ?
+      ORDER BY w.logged_at, w.id`
+  ).bind(uid, day).all()).results;
+  return json({ day, sets });
+}
+
+// Распределение по группам мышц за последние 30 дней: число подходов и объём по target_muscle.
+async function muscleStats(env, uid, url) {
+  const today = isValidDay(url.searchParams.get("today")) ? url.searchParams.get("today") : new Date().toISOString().slice(0, 10);
+  const from = addDays(today, -29);
+  const muscles = (await env.DB.prepare(
+    `SELECT COALESCE(e.target_muscle, 'Разное') AS muscle,
+            COUNT(*) AS sets,
+            SUM(w.weight * w.reps) AS volume
+       FROM workout_sets w
+       JOIN exercises e ON e.id = w.exercise_id
+      WHERE w.user_id = ? AND w.day >= ? AND w.day <= ?
+      GROUP BY muscle
+      ORDER BY sets DESC`
+  ).bind(uid, from, today).all()).results;
+  return json({ today, from, muscles });
+}
+
+// Прогресс по упражнению: максимальный рабочий вес и объём по дням (для SVG-графика).
+async function exerciseProgress(env, uid, url) {
+  const exId = Math.trunc(Number(url.searchParams.get("exercise_id")));
+  if (!isFinite(exId) || exId <= 0) return json({ error: "invalid exercise" }, 400);
+  const owned = await env.DB.prepare("SELECT id, name FROM exercises WHERE id=? AND user_id=?").bind(exId, uid).first();
+  if (!owned) return json({ error: "not found" }, 404);
+  const points = (await env.DB.prepare(
+    `SELECT day, MAX(weight) AS maxWeight, SUM(weight*reps) AS volume
+       FROM workout_sets WHERE user_id=? AND exercise_id=?
+      GROUP BY day ORDER BY day`
+  ).bind(uid, exId).all()).results;
+  return json({ exercise_id: exId, name: owned.name, points });
 }
 
 // ---------- сессии (подписанная cookie) ----------
@@ -613,6 +797,16 @@ function addDays(day, n) {
   const d = new Date(day + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+// Необязательное неотрицательное число → число или null (для дефолтных значений упражнений)
+function numOrNull(v) {
+  const n = Number(v);
+  return isFinite(n) && n >= 0 ? n : null;
+}
+function intOrNull(v) {
+  const n = Math.trunc(Number(v));
+  return isFinite(n) && n >= 0 ? n : null;
 }
 
 function timingSafeEqual(a, b) {

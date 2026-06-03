@@ -36,10 +36,15 @@ CREATE TABLE IF NOT EXISTS logs (
 -- Gym Mode: упражнения (справочник на пользователя) и подходы.
 -- Структура BI-ready: плоский JOIN workout_sets × exercises по exercise_id.
 CREATE TABLE IF NOT EXISTS exercises (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    INTEGER NOT NULL,
-  name       TEXT NOT NULL,
-  created_at TEXT NOT NULL,
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id          INTEGER NOT NULL,
+  name             TEXT NOT NULL,
+  default_sets     INTEGER,                -- дефолтное число подходов (NULL = не задано)
+  default_reps     INTEGER,                -- дефолтные повторения
+  default_weight   REAL,                   -- дефолтный рабочий вес, кг
+  default_calories REAL,                   -- дефолтные калории за подход
+  target_muscle    TEXT NOT NULL DEFAULT 'Разное',  -- группа мышц (для аналитики)
+  created_at       TEXT NOT NULL,
   UNIQUE(user_id, name)
 );
 
@@ -49,6 +54,7 @@ CREATE TABLE IF NOT EXISTS workout_sets (
   exercise_id INTEGER NOT NULL,
   weight      REAL NOT NULL,          -- кг
   reps        INTEGER NOT NULL,       -- повторения
+  calories    REAL,                   -- калории за подход (NULL = не задано)
   day         TEXT NOT NULL,          -- local YYYY-MM-DD (как logs.day)
   logged_at   TEXT NOT NULL           -- ISO timestamp
 );
