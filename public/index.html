@@ -269,6 +269,29 @@
           </div>
         </div>
 
+        <!-- Учёт калорий (доступен и для численных, и для простых привычек) -->
+        <div class="field">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="actTrackCaloriesInput" />
+            <span class="field-label" data-i18n="track_calories">TRACK CALORIES</span>
+          </label>
+        </div>
+        <div id="caloriesFields" class="flex flex-col gap-[18px]" style="display:none">
+          <div class="field">
+            <label class="field-label" data-i18n="calorie_direction">DIRECTION</label>
+            <div class="seg" id="calorieKindSeg">
+              <button type="button" class="seg-btn active" data-kind="burned" data-i18n="calorie_burned">🔥 Burned</button>
+              <button type="button" class="seg-btn" data-kind="saved" data-i18n="calorie_saved">🌱 Saved</button>
+            </div>
+            <input type="hidden" id="actCalorieKindInput" value="burned" />
+          </div>
+          <div class="field">
+            <label for="actCaloriesInput" class="field-label" data-i18n="calories_per_unit">KCAL PER UNIT</label>
+            <input type="number" id="actCaloriesInput" placeholder="40" min="0" step="any" class="field-input" />
+            <p class="text-label-sm font-label-sm text-on-surface-variant mt-1" data-i18n="calories_hint">Per one execution; for numeric habits it scales with the amount.</p>
+          </div>
+        </div>
+
         <div class="field">
           <label class="field-label mb-1 block" data-i18n="emoji_label">EMOJI</label>
           <div class="flex gap-2 overflow-x-auto pb-2 custom-scrollbar" id="emojiPicker"></div>

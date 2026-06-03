@@ -7,9 +7,15 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute trecker --file=./schema.sql",
-    "db:init:local": "wrangler d1 execute trecker --local --file=./schema.sql"
+    "db:init:local": "wrangler d1 execute trecker --local --file=./schema.sql",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@playwright/test": "^1.49.0",
     "wrangler": "^4.95.0"
   }
 }

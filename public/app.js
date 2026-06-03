@@ -225,6 +225,18 @@ const TRANSLATIONS = {
     daily_goal: 'DAILY GOAL',
     quick_add_buttons: 'QUICK ADD BUTTONS',
     quick_add_sub: 'Empty fields are hidden on the card.',
+    track_calories: 'TRACK CALORIES',
+    calorie_direction: 'DIRECTION',
+    calorie_burned: 'Burned',
+    calorie_saved: 'Saved',
+    calories_per_unit: 'KCAL PER UNIT',
+    calories_hint: 'Per one execution; for numeric habits it scales with the amount.',
+    calories_widget_title: 'CALORIES',
+    body_metrics: 'Body metrics',
+    weight_kg_label: 'WEIGHT (KG)',
+    height_cm_label: 'HEIGHT (CM)',
+    body_saved: 'Body metrics saved',
+    failed_save_body: 'Failed to save body metrics',
     color_label: 'COLOR',
     emoji_label: 'EMOJI',
     delete_btn: 'DELETE',
@@ -427,6 +439,18 @@ const TRANSLATIONS = {
     daily_goal: 'ДНЕВНАЯ ЦЕЛЬ',
     quick_add_buttons: 'КНОПКИ БЫСТРОГО ДОБАВЛЕНИЯ',
     quick_add_sub: 'Пустые поля будут скрыты на карточке.',
+    track_calories: 'УЧЁТ КАЛОРИЙ',
+    calorie_direction: 'НАПРАВЛЕНИЕ',
+    calorie_burned: 'Сожжено',
+    calorie_saved: 'Сэкономлено',
+    calories_per_unit: 'ККАЛ ЗА ЕДИНИЦУ',
+    calories_hint: 'За одно выполнение; для числовых привычек умножается на количество.',
+    calories_widget_title: 'КАЛОРИИ',
+    body_metrics: 'Параметры тела',
+    weight_kg_label: 'ВЕС (КГ)',
+    height_cm_label: 'РОСТ (СМ)',
+    body_saved: 'Параметры тела сохранены',
+    failed_save_body: 'Не удалось сохранить параметры',
     color_label: 'ЦВЕТ',
     emoji_label: 'ЭМОДЗИ',
     delete_btn: 'УДАЛИТЬ',
@@ -587,6 +611,7 @@ async function fetchJson(url, options = {}) {
 
 const api = {
   getMe: () => fetchJson('/api/me'),
+  updateMe: (data) => fetchJson('/api/me', { method: 'PATCH', body: JSON.stringify(data) }),
   getConfig: () => fetchJson('/api/config'),
   login: (email, password, turnstile) => fetchJson('/api/login', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
   register: (email, password, turnstile) => fetchJson('/api/register', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
@@ -1253,6 +1278,60 @@ function languageToggleRow() {
 // ==========================================
 // 8. ПРОФИЛЬ (настройки + управление привычками)
 // ==========================================
+// Карточка параметров тела: вес (кг) и рост (см) + расчёт BMI.
+// Вес используется для оценки калорий упражнений (по весу тела).
+function bodyMetricsCard() {
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  const u = state.user || {};
+  const renderBmi = () => {
+    const w = parseFloat(weightInput.value), h = parseFloat(heightInput.value);
+    if (isFinite(w) && w > 0 && isFinite(h) && h > 0) {
+      const bmi = w / Math.pow(h / 100, 2);
+      bmiEl.textContent = `BMI ${bmi.toFixed(1)}`;
+    } else {
+      bmiEl.textContent = '';
+    }
+  };
+  card.innerHTML = `
+    <h3 class="text-headline-md font-headline-md mb-md">${t('body_metrics')}</h3>
+    <div class="flex gap-4">
+      <div class="field flex-1">
+        <label for="profileWeightInput" class="field-label" data-i18n="weight_kg_label">${t('weight_kg_label')}</label>
+        <input type="number" id="profileWeightInput" min="0" step="any" class="field-input" placeholder="80" />
+      </div>
+      <div class="field flex-1">
+        <label for="profileHeightInput" class="field-label" data-i18n="height_cm_label">${t('height_cm_label')}</label>
+        <input type="number" id="profileHeightInput" min="0" step="any" class="field-input" placeholder="180" />
+      </div>
+    </div>
+    <div class="flex items-center justify-between gap-3 mt-2">
+      <span id="profileBmi" class="text-label-md font-label-md text-secondary"></span>
+      <button type="button" id="profileSaveBody" class="btn-primary px-5">${t('save_btn')}</button>
+    </div>
+  `;
+  const weightInput = card.querySelector('#profileWeightInput');
+  const heightInput = card.querySelector('#profileHeightInput');
+  const bmiEl = card.querySelector('#profileBmi');
+  weightInput.value = u.weight != null ? u.weight : '';
+  heightInput.value = u.height != null ? u.height : '';
+  renderBmi();
+  weightInput.addEventListener('input', renderBmi);
+  heightInput.addEventListener('input', renderBmi);
+  card.querySelector('#profileSaveBody').addEventListener('click', async () => {
+    const num = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null; };
+    const data = { weight: num(weightInput.value), height: num(heightInput.value) };
+    try {
+      const res = await api.updateMe(data);
+      state.user = { ...(state.user || {}), weight: data.weight, height: data.height };
+      showToast(t('body_saved'));
+    } catch (err) {
+      showToast(t('failed_save_body'), 'error');
+    }
+  });
+  return card;
+}
+
 async function renderProfileTab() {
   viewContainer.appendChild(pageHeader(t('profile'), t('settings_habits')));
 
@@ -1282,6 +1361,9 @@ async function renderProfileTab() {
   // Переключатель темы и языка
   viewContainer.appendChild(themeToggleRow());
   viewContainer.appendChild(languageToggleRow());
+
+  // Параметры тела (вес/рост → калории упражнений и BMI)
+  viewContainer.appendChild(bodyMetricsCard());
 
   // Управление привычками
   const habitsHead = document.createElement('div');
@@ -1493,6 +1575,34 @@ async function renderStatsTab() {
     return;
   }
   const activities = resp.activities || [];
+
+  // Глобальный счётчик калорий (сожжено / сэкономлено) за 7 / 14 / 30 дней.
+  // Показываем только если есть хоть какие-то калорийные данные.
+  const cal = resp.calories || { d7: {}, d14: {}, d30: {} };
+  const calTotal = ['d7', 'd14', 'd30'].reduce((a, k) => a + (cal[k]?.burned || 0) + (cal[k]?.saved || 0), 0);
+  if (calTotal > 0) {
+    const kcal = (v) => Math.round(v || 0).toLocaleString(state.lang === 'ru' ? 'ru-RU' : 'en-US');
+    const wgt = document.createElement('div');
+    wgt.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-gutter';
+    const block = (icon, color, title, kind) => `
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2 ${color} font-semibold">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">${icon}</span>
+          <span class="text-label-md font-label-md uppercase tracking-wider">${title}</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          ${[7, 14, 30].map((w) => miniStat(t('days_btn', { n: w }), kcal(cal['d' + w] && cal['d' + w][kind]))).join('')}
+        </div>
+      </div>`;
+    wgt.innerHTML = `
+      <h3 class="text-headline-md font-headline-md mb-md border-b border-outline-variant/30 pb-3">${t('calories_widget_title')}</h3>
+      <div class="flex flex-col sm:flex-row gap-md">
+        ${block('local_fire_department', 'text-secondary', t('calorie_burned'), 'burned')}
+        ${block('eco', 'text-primary', t('calorie_saved'), 'saved')}
+      </div>`;
+    viewContainer.appendChild(wgt);
+  }
+
   if (activities.length === 0) {
     viewContainer.appendChild(emptyState(t('no_stats_data'), t('log_habits_stats')));
     return;
@@ -1606,18 +1716,18 @@ async function renderGymStats() {
     return;
   }
 
-  const tonnage = resp.tonnage || { d7: 0, d14: 0, d30: 0 };
-  const calories = resp.calories || { d7: 0, d14: 0, d30: 0 };
+  const tonnage = resp.tonnage || { today: 0, d7: 0, d14: 0, d30: 0 };
+  const calories = resp.calories || { today: 0, d7: 0, d14: 0, d30: 0 };
   const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
 
-  // 1) Карточки период: тоннаж (крупно) + сожжённые калории (мелко) за 7 / 14 / 30 дней
+  // 1) Карточки период: тоннаж (крупно) + сожжённые калории (мелко) за сегодня / 7 / 14 / 30 дней
   const tonnageGrid = document.createElement('div');
   tonnageGrid.className = 'card-grid mb-md';
-  [[7, tonnage.d7, calories.d7], [14, tonnage.d14, calories.d14], [30, tonnage.d30, calories.d30]].forEach(([n, tn, cal]) => {
+  [[t('today_label'), tonnage.today, calories.today], [t('period_days', { n: 7 }), tonnage.d7, calories.d7], [t('period_days', { n: 14 }), tonnage.d14, calories.d14], [t('period_days', { n: 30 }), tonnage.d30, calories.d30]].forEach(([label, tn, cal]) => {
     const c = document.createElement('div');
     c.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col items-center justify-center text-center';
     c.innerHTML = `
-      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${t('period_days', { n })}</span>
+      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${label}</span>
       <span class="text-headline-xl font-headline-xl text-primary leading-none mt-2">${fmt(tn)}</span>
       <span class="text-label-sm font-label-sm text-on-surface-variant mt-1">${t('kg_lifted')}</span>
       <span class="text-label-sm font-label-sm text-secondary mt-2">${fmt(cal)} ${t('kcal_burned')}</span>
@@ -1929,6 +2039,31 @@ typeSeg.addEventListener('click', (e) => {
   if (btn) setActivityType(btn.getAttribute('data-type'));
 });
 
+// Учёт калорий: чекбокс показывает/скрывает поля направления и величины
+const actTrackCaloriesInput = document.getElementById('actTrackCaloriesInput');
+const caloriesFields = document.getElementById('caloriesFields');
+const calorieKindSeg = document.getElementById('calorieKindSeg');
+const actCalorieKindInput = document.getElementById('actCalorieKindInput');
+const actCaloriesInput = document.getElementById('actCaloriesInput');
+
+function setTrackCalories(on) {
+  actTrackCaloriesInput.checked = !!on;
+  caloriesFields.style.display = on ? '' : 'none';
+}
+function setCalorieKind(kind) {
+  const k = kind === 'saved' ? 'saved' : 'burned';
+  actCalorieKindInput.value = k;
+  calorieKindSeg.querySelectorAll('.seg-btn').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-kind') === k);
+  });
+}
+
+actTrackCaloriesInput.addEventListener('change', () => setTrackCalories(actTrackCaloriesInput.checked));
+calorieKindSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (btn) setCalorieKind(btn.getAttribute('data-kind'));
+});
+
 const logModal = document.getElementById('logModal');
 const logForm = document.getElementById('logForm');
 const logActivitySelect = document.getElementById('logActivitySelect');
@@ -2033,6 +2168,9 @@ function openActivityModal(activity = null) {
     state.selectedColor = activity.color || '#0059b5';
     actColorInput.value = state.selectedColor;
     setActivityType(activity.type || 'numeric');
+    setCalorieKind(activity.calorie_kind || 'burned');
+    actCaloriesInput.value = activity.calories_per_unit != null ? activity.calories_per_unit : '';
+    setTrackCalories(!!activity.track_calories);
     deleteActivityBtn.hidden = false;
   } else {
     modalTitle.textContent = t('new_habit');
@@ -2043,6 +2181,9 @@ function openActivityModal(activity = null) {
     state.selectedColor = '#0059b5';
     actColorInput.value = '#0059b5';
     setActivityType('numeric');
+    setCalorieKind('burned');
+    actCaloriesInput.value = '';
+    setTrackCalories(false);
     deleteActivityBtn.hidden = true;
   }
   initColorPicker();
@@ -2203,6 +2344,21 @@ const gymExerciseSelect = document.getElementById('gymExerciseSelect');
 const gymWeightInput = document.getElementById('gymWeightInput');
 const gymRepsInput = document.getElementById('gymRepsInput');
 const gymCaloriesInput = document.getElementById('gymCaloriesInput');
+
+// Авто-оценка калорий подхода по весу тела (MET-формула, ACSM): kcal = MET × вес × время.
+// Время подхода оценивается от числа повторений (≈4с на повтор, минимум 30с); MET=6 (силовая).
+function estimateSetCalories(reps) {
+  const w = state.user && state.user.weight;
+  if (!(w > 0) || !(reps > 0)) return null;
+  const minutes = Math.max(0.5, (reps * 4) / 60);
+  return Math.round(6 * w * (minutes / 60));
+}
+// Живая подсказка: оценка показывается в placeholder поля калорий, пока пользователь не ввёл своё.
+function refreshCaloriePlaceholder() {
+  const est = estimateSetCalories(parseInt(gymRepsInput.value));
+  if (est != null) gymCaloriesInput.placeholder = String(est);
+}
+if (gymRepsInput) gymRepsInput.addEventListener('input', refreshCaloriePlaceholder);
 const gymSetList = document.getElementById('gymSetList');
 const gymSetCount = document.getElementById('gymSetCount');
 const gymManageBtn = document.getElementById('gymManageBtn');
@@ -2445,7 +2601,8 @@ function addGymSet() {
     return;
   }
   const calRaw = parseFloat(gymCaloriesInput.value);
-  const calories = (isFinite(calRaw) && calRaw >= 0) ? Number(calRaw) : null;
+  // Ручной ввод имеет приоритет; иначе авто-оценка по весу тела (MET). Без веса — null, как раньше.
+  const calories = (isFinite(calRaw) && calRaw >= 0) ? Number(calRaw) : estimateSetCalories(reps);
   const nSets = getSetsCount();
   for (let k = 0; k < nSets; k++) {
     state.gymSets.push({ exercise: exerciseName, exercise_id: exerciseId, weight: Number(weight), reps, calories });
@@ -2597,6 +2754,31 @@ document.getElementById('cancelModalBtn').addEventListener('click', closeActivit
 document.getElementById('closeLogModalBtn').addEventListener('click', closeLogModal);
 document.getElementById('cancelLogModalBtn').addEventListener('click', closeLogModal);
 
+// Закрытие модалок при клике на оверлей (фон)
+document.getElementById('activityModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeActivityModal();
+});
+document.getElementById('logModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeLogModal();
+});
+document.getElementById('notifModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeNotifModal();
+});
+document.getElementById('gymModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeGymModal();
+});
+
+
+// Закрытие активного модального окна по клавише Escape
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!activityModal.classList.contains('hidden')) closeActivityModal();
+    if (!logModal.classList.contains('hidden')) closeLogModal();
+    if (!notifModal.classList.contains('hidden')) closeNotifModal();
+    if (!gymModal.classList.contains('hidden')) closeGymModal();
+  }
+});
+
 // Сохранение лога
 logForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2626,6 +2808,7 @@ activityForm.addEventListener('submit', async (e) => {
   
   const type = actTypeInput.value === 'simple' ? 'simple' : 'numeric';
   const numOrNull = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null; };
+  const trackCalories = actTrackCaloriesInput.checked;
   const data = {
     name,
     color: actColorInput.value,
@@ -2635,6 +2818,9 @@ activityForm.addEventListener('submit', async (e) => {
     quick_add_1: type === 'simple' ? null : numOrNull(actQa1Input.value),
     quick_add_2: type === 'simple' ? null : numOrNull(actQa2Input.value),
     quick_add_3: type === 'simple' ? null : numOrNull(actQa3Input.value),
+    track_calories: trackCalories ? 1 : 0,
+    calorie_kind: trackCalories ? (actCalorieKindInput.value === 'saved' ? 'saved' : 'burned') : null,
+    calories_per_unit: trackCalories ? numOrNull(actCaloriesInput.value) : null,
   };
   try {
     if (id) {

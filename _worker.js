@@ -51,9 +51,10 @@ async function handleApi(request, env, url) {
   if (!uid) return json({ error: "unauthorized" }, 401);
 
   if (path === "/me" && method === "GET") {
-    const u = await env.DB.prepare("SELECT id, email FROM users WHERE id=?").bind(uid).first();
+    const u = await env.DB.prepare("SELECT id, email, weight, height FROM users WHERE id=?").bind(uid).first();
     return json({ user: u });
   }
+  if (path === "/me" && method === "PATCH") return updateMe(request, env, uid);
   if (path === "/activities" && method === "GET") return listActivities(env, uid);
   if (path === "/activities" && method === "POST") return createActivity(request, env, uid);
 
@@ -155,6 +156,10 @@ function logout(request) {
 
 // Лимитер запросов на D1 (надёжно на любом плане): окно фиксированной длины по IP.
 async function rateOk(env, name, request, limit, periodSec) {
+  // Отключаем лимитер при локальном E2E тестировании (срезаем пробелы/CRLF для Windows)
+  const sessionSecret = (env.SESSION_SECRET || "").trim();
+  if (sessionSecret === 'e2e-testing-session-secret-key-32-chars-long-or-more') return true;
+
   const ip = request.headers.get("CF-Connecting-IP") || "anon";
   const now = Math.floor(Date.now() / 1000);
   const win = now - (now % periodSec);
@@ -305,12 +310,26 @@ function posOrNull(v) {
   return isFinite(n) && n > 0 ? n : null;
 }
 
-// Нормализация полей привычки из тела запроса (тип + кнопки + цель)
+// Калорийные поля привычки: учёт включается только при валидном направлении и величине.
+// Направление хранится явной колонкой calorie_kind ('saved' | 'burned'); величина — модуль > 0.
+function normCalories(b) {
+  const track = b.track_calories ? 1 : 0;
+  const kind = b.calorie_kind === "saved" || b.calorie_kind === "burned" ? b.calorie_kind : null;
+  const cpu = posOrNull(b.calories_per_unit);
+  // Учёт считается включённым, только если заданы и направление, и величина.
+  if (!track || !kind || cpu == null) {
+    return { track_calories: 0, calorie_kind: null, calories_per_unit: null };
+  }
+  return { track_calories: 1, calorie_kind: kind, calories_per_unit: cpu };
+}
+
+// Нормализация полей привычки из тела запроса (тип + кнопки + цель + калории)
 function normActivity(b) {
+  const cal = normCalories(b);
   const type = b.type === "simple" ? "simple" : "numeric";
   if (type === "simple") {
     // разовая: цель всегда 1, единиц и кнопок нет
-    return { type, unit: "", goal: 1, qa1: null, qa2: null, qa3: null };
+    return { type, unit: "", goal: 1, qa1: null, qa2: null, qa3: null, ...cal };
   }
   return {
     type,
@@ -319,7 +338,17 @@ function normActivity(b) {
     qa1: posOrNull(b.quick_add_1),
     qa2: posOrNull(b.quick_add_2),
     qa3: posOrNull(b.quick_add_3),
+    ...cal,
   };
+}
+
+// Профиль: обновление веса (кг) и роста (см). Пустые/невалидные значения → NULL (сброс).
+async function updateMe(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const weight = posOrNull(b.weight);
+  const height = posOrNull(b.height);
+  await env.DB.prepare("UPDATE users SET weight=?, height=? WHERE id=?").bind(weight, height, uid).run();
+  return json({ ok: true, user: { weight, height } });
 }
 
 async function listActivities(env, uid) {
@@ -336,8 +365,8 @@ async function createActivity(request, env, uid) {
   const f = normActivity(b);
   const now = new Date().toISOString();
   const res = await env.DB.prepare(
-    "INSERT INTO activities (user_id, name, unit, color, daily_goal, type, quick_add_1, quick_add_2, quick_add_3, sort, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
-  ).bind(uid, name, f.unit, b.color || "#0059b5", f.goal, f.type, f.qa1, f.qa2, f.qa3, Number(b.sort) || 0, now).run();
+    "INSERT INTO activities (user_id, name, unit, color, daily_goal, type, quick_add_1, quick_add_2, quick_add_3, track_calories, calorie_kind, calories_per_unit, sort, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+  ).bind(uid, name, f.unit, b.color || "#0059b5", f.goal, f.type, f.qa1, f.qa2, f.qa3, f.track_calories, f.calorie_kind, f.calories_per_unit, Number(b.sort) || 0, now).run();
   return json({ id: res.meta.last_row_id });
 }
 
@@ -349,8 +378,8 @@ async function updateActivity(request, env, uid, id) {
   if (!name) return json({ error: "Нужно название" }, 400);
   const f = normActivity(b);
   await env.DB.prepare(
-    "UPDATE activities SET name=?, unit=?, color=?, daily_goal=?, type=?, quick_add_1=?, quick_add_2=?, quick_add_3=? WHERE id=? AND user_id=?"
-  ).bind(name, f.unit, b.color || "#0059b5", f.goal, f.type, f.qa1, f.qa2, f.qa3, id, uid).run();
+    "UPDATE activities SET name=?, unit=?, color=?, daily_goal=?, type=?, quick_add_1=?, quick_add_2=?, quick_add_3=?, track_calories=?, calorie_kind=?, calories_per_unit=? WHERE id=? AND user_id=?"
+  ).bind(name, f.unit, b.color || "#0059b5", f.goal, f.type, f.qa1, f.qa2, f.qa3, f.track_calories, f.calorie_kind, f.calories_per_unit, id, uid).run();
   return json({ ok: true });
 }
 
@@ -373,7 +402,7 @@ async function createLog(request, env, uid) {
   const b = await request.json().catch(() => ({}));
   let amount = Number(b.amount);
   if (!b.activity_id || !isFinite(amount) || amount === 0) return json({ error: "invalid" }, 400);
-  const act = await env.DB.prepare("SELECT id, type FROM activities WHERE id=? AND user_id=?").bind(b.activity_id, uid).first();
+  const act = await env.DB.prepare("SELECT id, type, track_calories, calorie_kind, calories_per_unit FROM activities WHERE id=? AND user_id=?").bind(b.activity_id, uid).first();
   if (!act) return json({ error: "no activity" }, 404);
   const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
   // Деградация legacy: type NULL/иное трактуем как 'numeric'; 'simple' — разовая
@@ -386,10 +415,17 @@ async function createLog(request, env, uid) {
     ).bind(uid, b.activity_id, day).first();
     if (existing) return json({ ok: true, already: true });
   }
+  // Снимок калорий на момент выполнения: модуль = calories_per_unit × amount,
+  // направление берём из настройки привычки. Историчность: будущие правки привычки логи не трогают.
+  let caloriesLogged = null, calorieKind = null;
+  if (act.track_calories && act.calorie_kind && act.calories_per_unit != null) {
+    caloriesLogged = act.calories_per_unit * amount;
+    calorieKind = act.calorie_kind;
+  }
   const logged_at = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT INTO logs (user_id, activity_id, amount, day, logged_at) VALUES (?,?,?,?,?)"
-  ).bind(uid, b.activity_id, amount, day, logged_at).run();
+    "INSERT INTO logs (user_id, activity_id, amount, calories_logged, calorie_kind, day, logged_at) VALUES (?,?,?,?,?,?,?)"
+  ).bind(uid, b.activity_id, amount, caloriesLogged, calorieKind, day, logged_at).run();
   return json({ ok: true });
 }
 
@@ -408,9 +444,13 @@ async function updateLog(request, env, uid, id) {
   const b = await request.json().catch(() => ({}));
   const amount = Number(b.amount);
   if (!isFinite(amount) || amount <= 0) return json({ error: "invalid amount" }, 400);
-  const owned = await env.DB.prepare("SELECT id FROM logs WHERE id=? AND user_id=?").bind(id, uid).first();
+  const owned = await env.DB.prepare("SELECT id, amount, calories_logged FROM logs WHERE id=? AND user_id=?").bind(id, uid).first();
   if (!owned) return json({ error: "not found" }, 404);
-  await env.DB.prepare("UPDATE logs SET amount=? WHERE id=? AND user_id=?").bind(amount, id, uid).run();
+  // Пересчёт снимка калорий пропорционально новому количеству, сохраняя ИСХОДНУЮ ставку из снимка
+  // (а не текущую настройку привычки) — чтобы историчность не зависела от правок привычки.
+  let calories = owned.calories_logged;
+  if (calories != null && owned.amount > 0) calories = calories * (amount / owned.amount);
+  await env.DB.prepare("UPDATE logs SET amount=?, calories_logged=? WHERE id=? AND user_id=?").bind(amount, calories, id, uid).run();
   return json({ ok: true });
 }
 
@@ -460,7 +500,23 @@ async function stats(env, uid, url) {
     };
   });
 
-  return json({ today, days, activities });
+  // Глобальный счётчик калорий за фиксированные окна 7 и 30 дней (независимо от тумблера периода).
+  // Самодокументируемая агрегация по явному направлению calorie_kind.
+  async function caloriesWindow(fromDay) {
+    const rows = (await env.DB.prepare(
+      "SELECT calorie_kind, SUM(calories_logged) total FROM logs WHERE user_id=? AND calories_logged IS NOT NULL AND calorie_kind IS NOT NULL AND day>=? AND day<=? GROUP BY calorie_kind"
+    ).bind(uid, fromDay, today).all()).results;
+    const out = { burned: 0, saved: 0 };
+    for (const r of rows) if (r.calorie_kind === "burned" || r.calorie_kind === "saved") out[r.calorie_kind] = r.total || 0;
+    return out;
+  }
+  const calories = {
+    d7: await caloriesWindow(addDays(today, -6)),
+    d14: await caloriesWindow(addDays(today, -13)),
+    d30: await caloriesWindow(addDays(today, -29)),
+  };
+
+  return json({ today, days, activities, calories });
 }
 
 // ---------- exercises (Gym Mode: справочник) ----------
@@ -612,13 +668,14 @@ async function workoutStats(env, uid, url) {
   const dayRows = (await env.DB.prepare(
     "SELECT day, SUM(weight*reps) v, SUM(COALESCE(calories,0)) c FROM workout_sets WHERE user_id=? AND day>=? AND day<=? GROUP BY day"
   ).bind(uid, from30, today).all()).results;
-  let d7 = 0, d14 = 0, d30 = 0;
-  let c7 = 0, c14 = 0, c30 = 0;
+  let d0 = 0, d7 = 0, d14 = 0, d30 = 0;
+  let c0 = 0, c7 = 0, c14 = 0, c30 = 0;
   for (const r of dayRows) {
     const v = r.v || 0, c = r.c || 0;
     d30 += v; c30 += c;
     if (r.day >= from14) { d14 += v; c14 += c; }
     if (r.day >= from7) { d7 += v; c7 += c; }
+    if (r.day === today) { d0 += v; c0 += c; }
   }
 
   // По упражнениям за всё время: объём, макс. вес, оценка 1RM (Эпли: weight*(1+reps/30))
@@ -645,8 +702,8 @@ async function workoutStats(env, uid, url) {
 
   return json({
     today,
-    tonnage: { d7, d14, d30 },
-    calories: { d7: c7, d14: c14, d30: c30 },
+    tonnage: { today: d0, d7, d14, d30 },
+    calories: { today: c0, d7: c7, d14: c14, d30: c30 },
     days,
     exercises: exRows,
     top: exRows.slice(0, 3),

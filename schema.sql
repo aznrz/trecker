@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
   email      TEXT UNIQUE NOT NULL,
   pass_hash  TEXT NOT NULL,
   google_id  TEXT,                  -- для входа через Google (NULL у обычных аккаунтов)
+  weight     REAL,                  -- вес тела, кг (для оценки калорий упражнений)
+  height     REAL,                  -- рост, см (для BMI)
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);
@@ -20,6 +22,9 @@ CREATE TABLE IF NOT EXISTS activities (
   quick_add_1 REAL,                              -- значения кнопок быстрого ввода (NULL = нет кнопки)
   quick_add_2 REAL,
   quick_add_3 REAL,
+  track_calories    INTEGER NOT NULL DEFAULT 0,  -- 0/1: включён ли учёт калорий
+  calorie_kind      TEXT,                         -- 'saved' | 'burned'; NULL = учёт выключен
+  calories_per_unit REAL,                         -- калорий за единицу (модуль, > 0); NULL = не задано
   sort        INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL
 );
@@ -29,6 +34,8 @@ CREATE TABLE IF NOT EXISTS logs (
   user_id     INTEGER NOT NULL,
   activity_id INTEGER NOT NULL,
   amount      REAL NOT NULL,
+  calories_logged REAL,               -- снимок калорий на момент выполнения (модуль); NULL = без учёта
+  calorie_kind    TEXT,               -- снимок направления: 'saved' | 'burned'; NULL = без учёта
   day         TEXT NOT NULL,          -- local YYYY-MM-DD (для группировки и streak)
   logged_at   TEXT NOT NULL           -- ISO timestamp
 );

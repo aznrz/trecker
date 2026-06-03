@@ -60,6 +60,9 @@ html.dark {
 }
 
 /* ====================== БАЗА ====================== */
+html, body {
+  overflow-x: hidden;
+}
 body {
   background-color: rgb(var(--background));
   font-family: 'Sora', sans-serif;
