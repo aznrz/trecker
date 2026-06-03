@@ -1,6 +1,6 @@
 # Habit Tracker
 
-Приложение на Cloudflare Workers + D1. Прод: https://trecker.ms-cert.workers.dev
+Приложение на Cloudflare Workers + D1. Прод: https://sport.ms-cert.workers.dev
 
 > 📚 База знаний проекта (вики по [методу Карпатого](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) — в [wiki/](wiki/index.md). Правила её ведения — в [AGENTS.md](AGENTS.md).
 
@@ -64,7 +64,7 @@ OAuth-клиент: проект Google Cloud `habit-tracker` (`habit-tracker-49
 client name «Habit Tracker Web».
 
 Redirect URI:
-- `https://trecker.ms-cert.workers.dev/api/auth/google/callback`
+- `https://sport.ms-cert.workers.dev/api/auth/google/callback`
 - `http://localhost:8787/api/auth/google/callback`
 
 ### Важные нюансы

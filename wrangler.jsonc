@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "trecker",
+  "name": "sport",
   "main": "_worker.js",
   "compatibility_date": "2026-04-17",
   "compatibility_flags": ["nodejs_compat"],
