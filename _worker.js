@@ -463,7 +463,7 @@ async function deleteLog(env, uid, id) {
 
 async function stats(env, uid, url) {
   const today = isValidDay(url.searchParams.get("today")) ? url.searchParams.get("today") : new Date().toISOString().slice(0, 10);
-  const days = Math.min(Math.max(parseInt(url.searchParams.get("days") || "30") || 30, 1), 90);
+  const days = Math.min(Math.max(parseInt(url.searchParams.get("days") || "30") || 30, 1), 366);
   const acts = (await env.DB.prepare("SELECT * FROM activities WHERE user_id=? ORDER BY sort, id").bind(uid).all()).results;
 
   const fromDay = addDays(today, -(days - 1));

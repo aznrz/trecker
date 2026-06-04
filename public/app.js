@@ -19,6 +19,9 @@ const state = {
   gymExercises: [], // справочник упражнений с дефолтами (кэш из /api/exercises)
   gymStatsExerciseId: null, // выбранное упражнение для графика прогресса
   gymCalDate: null, // выбранный день в календаре тренировок
+  calMonth: null, // 'YYYY-MM' — отображаемый месяц в календаре привычек
+  calHabitFilter: null, // null = все привычки, либо activity.id для фокуса на одной
+  calShowYear: false, // показан ли годовой heatmap
   lang: (() => {
     try {
       return localStorage.getItem('antigravity-lang') || (navigator.language.startsWith('ru') ? 'ru' : 'en');
@@ -143,11 +146,30 @@ const TRANSLATIONS = {
     // Calendar
     calendar_title: 'Calendar',
     completed_habits_sub: 'Days with completed habits',
-    legend: 'Colored dots under a date mark habits completed that day.',
+    legend: 'Cell brightness = share of habits done that day. Dots show which habits.',
     failed_load_calendar: 'Failed to load calendar',
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     weekdays_short: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+    cal_today_btn: 'Today',
+    cal_filter_all: 'All',
+    cal_summary: '{active} active days · {rate}% done · {perfect} perfect · best streak {streak}',
+    cal_tap_hint: 'Tap a day to see details.',
+    cal_day_detail_title: 'Habits on {date}',
+    cal_habits_done: '{n} of {m} habits',
+    cal_goal_met: 'goal ✓',
+    cal_goal_miss: 'in progress',
+    cal_no_activity: 'No activity this day.',
+    cal_perfect_day: 'Perfect day 🏆',
+    cal_weekday_insight: 'Consistency by weekday',
+    cal_best_day: 'Strongest: {d}',
+    cal_worst_day: 'Weakest: {d}',
+    cal_year_heatmap: 'Year overview',
+    cal_show_year: 'Show year',
+    cal_hide_year: 'Hide year',
+    cal_less: 'less',
+    cal_more: 'more',
+    cal_year_tip: '{date}: {n} of {m} habits',
 
     // Stats
     stats_title: 'Stats',
@@ -357,11 +379,30 @@ const TRANSLATIONS = {
     // Calendar
     calendar_title: 'Календарь',
     completed_habits_sub: 'Дни с выполненными привычками',
-    legend: 'Цветные точки под датой отмечают выполненные в этот день привычки.',
+    legend: 'Яркость ячейки — доля выполненных привычек за день. Точки — какие именно.',
     failed_load_calendar: 'Не удалось загрузить календарь',
     months: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
     weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
     weekdays_short: ['В', 'П', 'В', 'С', 'Ч', 'П', 'С'],
+    cal_today_btn: 'Сегодня',
+    cal_filter_all: 'Все',
+    cal_summary: '{active} актив. дней · {rate}% выполнено · {perfect} идеальных · стрик {streak}',
+    cal_tap_hint: 'Нажмите на день, чтобы увидеть детали.',
+    cal_day_detail_title: 'Привычки за {date}',
+    cal_habits_done: '{n} из {m} привычек',
+    cal_goal_met: 'цель ✓',
+    cal_goal_miss: 'в процессе',
+    cal_no_activity: 'В этот день активности не было.',
+    cal_perfect_day: 'Идеальный день 🏆',
+    cal_weekday_insight: 'Стабильность по дням недели',
+    cal_best_day: 'Сильнее всего: {d}',
+    cal_worst_day: 'Слабее всего: {d}',
+    cal_year_heatmap: 'Обзор года',
+    cal_show_year: 'Показать год',
+    cal_hide_year: 'Скрыть год',
+    cal_less: 'меньше',
+    cal_more: 'больше',
+    cal_year_tip: '{date}: {n} из {m} привычек',
 
     // Stats
     stats_title: 'Статистика',
@@ -806,8 +847,17 @@ async function renderDashboardTab() {
   `;
   grid.appendChild(summary);
 
-  activities.forEach((act) => grid.appendChild(habitCard(act, todayDate)));
+  // Выполненные карточки опускаем в конец (стабильная сортировка сохраняет порядок внутри групп)
+  const ordered = [...activities].sort((a, b) => (isHabitDone(a) ? 1 : 0) - (isHabitDone(b) ? 1 : 0));
+  ordered.forEach((act) => grid.appendChild(habitCard(act, todayDate)));
   viewContainer.appendChild(grid);
+}
+
+// «Выполнена ли привычка сегодня»: simple — отмечена; numeric — достигнута цель (100%).
+function isHabitDone(act) {
+  return act.type === 'simple'
+    ? act.today_total > 0
+    : (act.daily_goal > 0 && act.today_total >= act.daily_goal);
 }
 
 function habitCard(act, todayDate) {
@@ -816,6 +866,7 @@ function habitCard(act, todayDate) {
   // h-full + flex-col + mt-auto на блоке кнопок → карточки в ряду одинаковой высоты, кнопки прижаты к низу (задача 8)
   card.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
   card.addEventListener('click', () => { state.selectedActivityId = act.id; renderCurrentTab(); });
+  if (isHabitDone(act)) card.classList.add('habit-done');
 
   const isSimple = act.type === 'simple';
   const doneToday = act.today_total > 0;
@@ -823,7 +874,7 @@ function habitCard(act, todayDate) {
   if (isSimple) percent = doneToday ? 100 : 0;
   else if (act.daily_goal > 0) percent = Math.min((act.today_total / act.daily_goal) * 100, 100);
   else if (act.today_total > 0) percent = 100;
-  const done = isSimple ? doneToday : (act.daily_goal > 0 && act.today_total >= act.daily_goal);
+  const done = isHabitDone(act);
 
   // Шапка: название + стрик + (numeric — счётчик / simple — статус-галочка)
   const head = document.createElement('div');
@@ -917,12 +968,12 @@ function habitCard(act, todayDate) {
   } else {
     // Кнопки не заданы — ручной ввод + «Записать» (+ Done при наличии цели)
     const row = document.createElement('div');
-    row.className = 'flex gap-sm mt-auto';
+    row.className = 'flex flex-wrap gap-sm mt-auto';
     const input = document.createElement('input');
     input.type = 'number';
     input.min = '0'; input.step = 'any';
     input.placeholder = act.unit || 'number';
-    input.className = 'field-input flex-1 py-2';
+    input.className = 'field-input flex-1 min-w-0 py-2';
     input.addEventListener('click', (e) => e.stopPropagation());
     const add = document.createElement('button');
     add.type = 'button';
@@ -1421,90 +1472,380 @@ async function renderProfileTab() {
 // ==========================================
 // 8.5 КАЛЕНДАРЬ (сетка месяца с отметками выполнения)
 // ==========================================
+// hex (#rrggbb) → rgba-строка с заданной альфой; некорректный ввод → primary
+function hexToRgba(hex, a) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m) return `rgb(var(--primary) / ${a})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
 async function renderCalendarTab() {
   viewContainer.appendChild(pageHeader(t('calendar_title'), t('completed_habits_sub')));
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-based
-  const todayDate = localDay();
+  if (!state.calMonth) state.calMonth = localDay().slice(0, 7); // 'YYYY-MM'
+  const todayStr = localDay();
+  const curYm = todayStr.slice(0, 7);
 
-  // Тянем статистику с начала месяца по сегодня, чтобы знать дни с активностью
-  const daysSoFar = now.getDate();
-  let resp;
-  try {
-    resp = await api.getStats(todayDate, daysSoFar);
-  } catch (err) {
-    showToast(t('failed_load_calendar'), 'error');
-    return;
-  }
-  const activities = resp.activities || [];
-
-  // Карта: день (YYYY-MM-DD) → массив цветов выполнивших привычек
-  const dotsByDay = {};
-  activities.forEach((act) => {
-    const color = act.color || '#0059b5';
-    (act.series || []).forEach((s) => {
-      if (s.total > 0) {
-        (dotsByDay[s.day] = dotsByDay[s.day] || []).push(color);
-      }
-    });
-  });
-
-  const monthNames = t('months');
   const wrap = document.createElement('div');
   wrap.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
-  wrap.innerHTML = `<h3 class="text-headline-md font-headline-md mb-md text-center">${monthNames[month]} ${year}</h3>`;
-
-  // Заголовки дней недели (Пн..Вс)
-  const grid = document.createElement('div');
-  grid.className = 'cal-grid';
-  t('weekdays').forEach((d) => {
-    const dow = document.createElement('div');
-    dow.className = 'cal-dow';
-    dow.textContent = d;
-    grid.appendChild(dow);
-  });
-
-  // Пустые ячейки до первого дня (неделя начинается с понедельника)
-  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = Пн
-  for (let i = 0; i < firstDow; i++) {
-    const e = document.createElement('div');
-    e.className = 'cal-cell empty';
-    grid.appendChild(e);
-  }
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  for (let day = 1; day <= daysInMonth; day++) {
-    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell' + (iso === todayDate ? ' today' : '');
-
-    const num = document.createElement('span');
-    num.textContent = day;
-    cell.appendChild(num);
-
-    const dots = document.createElement('div');
-    dots.className = 'cal-dots';
-    const colors = [...new Set(dotsByDay[iso] || [])].slice(0, 3);
-    colors.forEach((c) => {
-      const dot = document.createElement('span');
-      dot.className = 'cal-dot';
-      dot.style.background = c;
-      dots.appendChild(dot);
-    });
-    cell.appendChild(dots);
-    grid.appendChild(cell);
-  }
-
-  wrap.appendChild(grid);
   viewContainer.appendChild(wrap);
+
+  const insightHost = document.createElement('div'); // блок «по дням недели»
+  viewContainer.appendChild(insightHost);
+  const yearHost = document.createElement('div'); // годовой heatmap
+  viewContainer.appendChild(yearHost);
 
   // Легенда
   const legend = document.createElement('p');
   legend.className = 'text-label-sm font-label-sm text-on-surface-variant text-center mt-md';
   legend.textContent = t('legend');
   viewContainer.appendChild(legend);
+
+  // Метаданные месяца 'YYYY-MM'
+  function monthBounds(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const last = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    return { y, m, daysInMonth, last };
+  }
+
+  // Загрузка месяца → агрегаты по дням. Окно ≤31 дня укладывается в лимит /api/stats (90).
+  async function loadMonth(ym) {
+    const { daysInMonth, last } = monthBounds(ym);
+    let anchor, days;
+    if (ym === curYm) { anchor = todayStr; days = Number(todayStr.slice(8, 10)); }
+    else { anchor = last; days = daysInMonth; }
+    const resp = await api.getStats(anchor, days);
+    const acts = resp.activities || [];
+    const totalHabits = acts.length;
+    const info = {}; // iso → { perHabit, doneCount, totalHabits, perfect, ratio }
+    let maxSingle = 0; // для нормировки в режиме фильтра
+    acts.forEach((a) => {
+      const color = a.color || '#0059b5';
+      const goal = Number(a.daily_goal) || 0;
+      (a.series || []).forEach((s) => {
+        if (!String(s.day).startsWith(ym)) return;
+        const total = s.total || 0;
+        if (total <= 0) return;
+        if (state.calHabitFilter === a.id && total > maxSingle) maxSingle = total;
+        const done = goal > 0 ? total >= goal : true;
+        (info[s.day] = info[s.day] || { perHabit: [] }).perHabit.push({
+          id: a.id, name: a.name, color, unit: a.unit || '', total, goal, done,
+        });
+      });
+    });
+    Object.keys(info).forEach((iso) => {
+      const d = info[iso];
+      d.totalHabits = totalHabits;
+      d.doneCount = d.perHabit.filter((h) => h.done).length;
+      d.perfect = totalHabits > 0 && d.doneCount === totalHabits; // закрыты все привычки дня
+      d.ratio = totalHabits ? d.doneCount / totalHabits : 0;
+    });
+    return { info, acts, totalHabits, maxSingle };
+  }
+
+  let data = null;
+  const dayDetail = document.createElement('div');
+  dayDetail.className = 'cal-day-detail mt-md';
+
+  function shiftMonth(delta) {
+    const [y, m] = state.calMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    state.calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    draw();
+  }
+
+  function showDay(iso) {
+    dayDetail.textContent = '';
+    const d = data.info[iso];
+    const p = iso.split('-');
+    const dateFmt = `${p[2]}.${p[1]}.${p[0]}`;
+    const title = document.createElement('p');
+    title.className = 'text-label-md font-label-md font-bold mb-2';
+    title.textContent = t('cal_day_detail_title', { date: dateFmt });
+    dayDetail.appendChild(title);
+    if (!d || !d.perHabit.length) {
+      const e = document.createElement('p');
+      e.className = 'text-label-sm font-label-sm text-on-surface-variant';
+      e.textContent = t('cal_no_activity');
+      dayDetail.appendChild(e);
+      return;
+    }
+    if (d.perfect) {
+      const badge = document.createElement('p');
+      badge.className = 'cal-perfect-badge text-label-sm font-label-sm font-bold mb-2';
+      badge.textContent = t('cal_perfect_day');
+      dayDetail.appendChild(badge);
+    }
+    const count = document.createElement('p');
+    count.className = 'text-label-sm font-label-sm text-on-surface-variant mb-2';
+    count.textContent = t('cal_habits_done', { n: d.doneCount, m: d.totalHabits });
+    dayDetail.appendChild(count);
+    d.perHabit.forEach((h) => {
+      const row = document.createElement('div');
+      row.className = 'cal-detail-row';
+      const goalTxt = h.goal > 0 ? ` / ${h.goal}` : '';
+      const badge = h.done ? t('cal_goal_met') : t('cal_goal_miss');
+      const pct = h.goal > 0 ? Math.min(100, Math.round((h.total / h.goal) * 100)) : 100;
+      row.innerHTML = `
+        <div class="flex items-center justify-between gap-2 min-w-0">
+          <span class="text-label-md font-label-md font-bold truncate min-w-0">${esc(h.name)}</span>
+          <span class="text-label-sm font-label-sm text-on-surface-variant shrink-0">${esc(String(h.total))}${goalTxt} ${esc(h.unit)} · ${esc(badge)}</span>
+        </div>
+        <div class="cal-detail-bar"><i style="width:${pct}%;background:${esc(h.color)}"></i></div>
+      `;
+      dayDetail.appendChild(row);
+    });
+  }
+
+  async function draw() {
+    wrap.textContent = '';
+    const [y, m] = state.calMonth.split('-').map(Number);
+
+    // Шапка с навигацией ‹ Месяц Год › + «Сегодня»
+    const nav = document.createElement('div');
+    nav.className = 'flex items-center justify-between mb-md gap-2';
+    const monthTitle = new Date(y, m - 1, 1).toLocaleDateString(state.lang === 'ru' ? 'ru-RU' : 'en-US', { month: 'long', year: 'numeric' });
+    nav.innerHTML = `
+      <button type="button" class="icon-btn" data-nav="-1" aria-label="prev"><span class="material-symbols-outlined">chevron_left</span></button>
+      <div class="flex items-center gap-2">
+        <span class="text-headline-md font-headline-md capitalize">${esc(monthTitle)}</span>
+        ${state.calMonth !== curYm ? `<button type="button" class="cal-today-btn" data-today>${esc(t('cal_today_btn'))}</button>` : ''}
+      </div>
+      <button type="button" class="icon-btn" data-nav="1" aria-label="next"><span class="material-symbols-outlined">chevron_right</span></button>
+    `;
+    nav.querySelector('[data-nav="-1"]').addEventListener('click', () => shiftMonth(-1));
+    nav.querySelector('[data-nav="1"]').addEventListener('click', () => shiftMonth(1));
+    const todayBtn = nav.querySelector('[data-today]');
+    if (todayBtn) todayBtn.addEventListener('click', () => { state.calMonth = curYm; draw(); });
+    wrap.appendChild(nav);
+
+    try {
+      data = await loadMonth(state.calMonth);
+    } catch (err) {
+      showToast(t('failed_load_calendar'), 'error');
+      return;
+    }
+
+    // Чипы-фильтры: «Все» + по привычке
+    const chips = document.createElement('div');
+    chips.className = 'cal-chips';
+    const allChip = document.createElement('button');
+    allChip.type = 'button';
+    allChip.className = 'cal-chip' + (state.calHabitFilter == null ? ' cal-chip--active' : '');
+    allChip.textContent = t('cal_filter_all');
+    allChip.addEventListener('click', () => { state.calHabitFilter = null; draw(); });
+    chips.appendChild(allChip);
+    data.acts.forEach((a) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'cal-chip' + (state.calHabitFilter === a.id ? ' cal-chip--active' : '');
+      chip.innerHTML = `<span class="cal-chip__dot" style="background:${esc(a.color || '#0059b5')}"></span><span class="truncate">${esc(a.name)}</span>`;
+      chip.addEventListener('click', () => { state.calHabitFilter = state.calHabitFilter === a.id ? null : a.id; draw(); });
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+
+    // Сетка
+    const grid = document.createElement('div');
+    grid.className = 'cal-grid';
+    t('weekdays').forEach((d) => {
+      const dow = document.createElement('div');
+      dow.className = 'cal-dow';
+      dow.textContent = d;
+      grid.appendChild(dow);
+    });
+    const firstDow = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    for (let i = 0; i < firstDow; i++) {
+      const e = document.createElement('div');
+      e.className = 'cal-cell empty';
+      grid.appendChild(e);
+    }
+    const filterAct = state.calHabitFilter != null ? data.acts.find((a) => a.id === state.calHabitFilter) : null;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const iso = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const di = data.info[iso];
+      const hasActivity = !!di;
+      const cell = document.createElement(hasActivity ? 'button' : 'div');
+      cell.className = 'cal-cell'
+        + (iso === todayStr ? ' today' : '')
+        + (di && di.perfect && !filterAct ? ' cal-cell--perfect' : '');
+
+      // Heatmap-фон
+      if (filterAct) {
+        const h = di && di.perHabit.find((x) => x.id === filterAct.id);
+        if (h) {
+          const norm = data.maxSingle > 0 ? h.total / data.maxSingle : 0;
+          cell.style.background = hexToRgba(filterAct.color, 0.2 + 0.6 * norm);
+        }
+      } else if (di && di.ratio > 0) {
+        cell.style.background = `rgb(var(--primary) / ${(0.15 + 0.55 * di.ratio).toFixed(2)})`;
+      }
+
+      const num = document.createElement('span');
+      num.textContent = day;
+      cell.appendChild(num);
+
+      // Точки (оставляем)
+      const dots = document.createElement('div');
+      dots.className = 'cal-dots';
+      if (filterAct) {
+        const h = di && di.perHabit.find((x) => x.id === filterAct.id);
+        if (h) {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot';
+          dot.style.background = filterAct.color || '#0059b5';
+          dots.appendChild(dot);
+        }
+      } else if (di) {
+        [...new Set(di.perHabit.map((h) => h.color))].slice(0, 3).forEach((c) => {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot';
+          dot.style.background = c;
+          dots.appendChild(dot);
+        });
+      }
+      cell.appendChild(dots);
+
+      if (hasActivity) {
+        cell.type = 'button';
+        cell.addEventListener('click', () => showDay(iso));
+      }
+      grid.appendChild(cell);
+    }
+    wrap.appendChild(grid);
+    wrap.appendChild(dayDetail);
+    if (!dayDetail.textContent) {
+      dayDetail.innerHTML = `<p class="text-label-sm font-label-sm text-on-surface-variant text-center">${esc(t('cal_tap_hint'))}</p>`;
+    }
+
+    renderWeekdayInsight();
+    renderYearToggle();
+  }
+
+  // ---- Инсайт по дням недели (#9) ----
+  function renderWeekdayInsight() {
+    insightHost.textContent = '';
+    if (!data || !data.totalHabits) return;
+    const [y, m] = state.calMonth.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const lastDay = state.calMonth === curYm ? Number(todayStr.slice(8, 10)) : daysInMonth;
+    const sum = [0, 0, 0, 0, 0, 0, 0];
+    const cnt = [0, 0, 0, 0, 0, 0, 0];
+    for (let day = 1; day <= lastDay; day++) {
+      const iso = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const wd = (new Date(y, m - 1, day).getDay() + 6) % 7; // 0 = Пн
+      sum[wd] += data.info[iso] ? data.info[iso].ratio : 0;
+      cnt[wd] += 1;
+    }
+    const avg = sum.map((s, i) => (cnt[i] ? s / cnt[i] : 0));
+    const max = Math.max(...avg, 0.0001);
+    const labels = t('weekdays');
+    let best = 0, worst = 0;
+    avg.forEach((v, i) => { if (v > avg[best]) best = i; if (v < avg[worst]) worst = i; });
+
+    const card = document.createElement('div');
+    card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mt-md';
+    const head = document.createElement('h3');
+    head.className = 'text-headline-md font-headline-md mb-md';
+    head.textContent = t('cal_weekday_insight');
+    card.appendChild(head);
+    const bars = document.createElement('div');
+    bars.className = 'cal-weekday-bars';
+    avg.forEach((v, i) => {
+      const col = document.createElement('div');
+      col.className = 'cal-wd';
+      col.innerHTML = `
+        <div class="cal-wd__track"><i style="height:${Math.round((v / max) * 100)}%"></i></div>
+        <span class="cal-wd__val">${Math.round(v * 100)}%</span>
+        <span class="cal-wd__lbl">${esc(labels[i])}</span>
+      `;
+      bars.appendChild(col);
+    });
+    card.appendChild(bars);
+    const note = document.createElement('p');
+    note.className = 'text-label-sm font-label-sm text-on-surface-variant mt-md';
+    note.textContent = `${t('cal_best_day', { d: labels[best] })} · ${t('cal_worst_day', { d: labels[worst] })}`;
+    card.appendChild(note);
+    insightHost.appendChild(card);
+  }
+
+  // ---- Годовой heatmap (#11), ленивый ----
+  function renderYearToggle() {
+    yearHost.textContent = '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cal-year-toggle mt-md';
+    btn.textContent = state.calShowYear ? t('cal_hide_year') : t('cal_show_year');
+    btn.addEventListener('click', () => { state.calShowYear = !state.calShowYear; renderYearToggle(); });
+    yearHost.appendChild(btn);
+    if (state.calShowYear) drawYear(yearHost);
+  }
+
+  async function drawYear(host) {
+    const card = document.createElement('div');
+    card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mt-md';
+    card.innerHTML = `<h3 class="text-headline-md font-headline-md mb-md">${esc(t('cal_year_heatmap'))}</h3>`;
+    host.appendChild(card);
+    let resp;
+    try {
+      resp = await api.getStats(todayStr, 365);
+    } catch (e) {
+      showToast(t('failed_load_calendar'), 'error');
+      return;
+    }
+    const acts = resp.activities || [];
+    const totalHabits = acts.length;
+    const done = {};
+    acts.forEach((a) => {
+      const goal = Number(a.daily_goal) || 0;
+      (a.series || []).forEach((s) => {
+        const total = s.total || 0;
+        if (total <= 0) return;
+        const isDone = goal > 0 ? total >= goal : true;
+        if (isDone) done[s.day] = (done[s.day] || 0) + 1;
+      });
+    });
+    const level = (iso) => {
+      const r = totalHabits ? (done[iso] || 0) / totalHabits : 0;
+      if (r <= 0) return 0;
+      if (r < 0.34) return 1;
+      if (r < 0.67) return 2;
+      if (r < 1) return 3;
+      return 4;
+    };
+    // 53 недели назад, выровнено к понедельнику
+    const today = new Date(todayStr + 'T00:00:00');
+    const start = new Date(today);
+    start.setDate(start.getDate() - 364);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // назад к понедельнику
+    const grid = document.createElement('div');
+    grid.className = 'cal-year';
+    const cur = new Date(start);
+    while (cur <= today) {
+      const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+      const cell = document.createElement('div');
+      cell.className = `cal-year__cell cal-year__cell--l${level(iso)}`;
+      cell.setAttribute('title', t('cal_year_tip', { date: iso, n: done[iso] || 0, m: totalHabits }));
+      grid.appendChild(cell);
+      cur.setDate(cur.getDate() + 1);
+    }
+    card.appendChild(grid);
+    const legendRow = document.createElement('div');
+    legendRow.className = 'cal-year__legend';
+    legendRow.innerHTML = `<span>${esc(t('cal_less'))}</span>
+      <i class="cal-year__cell cal-year__cell--l0"></i>
+      <i class="cal-year__cell cal-year__cell--l1"></i>
+      <i class="cal-year__cell cal-year__cell--l2"></i>
+      <i class="cal-year__cell cal-year__cell--l3"></i>
+      <i class="cal-year__cell cal-year__cell--l4"></i>
+      <span>${esc(t('cal_more'))}</span>`;
+    card.appendChild(legendRow);
+  }
+
+  await draw();
 }
 
 // ==========================================
