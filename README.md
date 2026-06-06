@@ -1,96 +1,153 @@
 # Habit Tracker
 
-Приложение на Cloudflare Workers + D1. Прод: https://sport.ms-cert.workers.dev
+PWA-приложение для отслеживания ежедневных привычек.
 
-> 📚 База знаний проекта (вики по [методу Карпатого](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) — в [wiki/](wiki/index.md). Правила её ведения — в [AGENTS.md](AGENTS.md).
+**Прод:** https://sport.ms-cert.workers.dev
+**Воркер:** `sport` (Cloudflare Workers)
+**БД:** D1 `trecker` (`8de67ef9-b00c-40ba-9bbb-9b1740869b54`)
 
-## Локальный запуск
+> Деплой вручную через `npm run deploy`. Git-автодеплоя нет.
 
-```bash
-npm install            # один раз
-npm run dev            # запуск локального сервера (wrangler dev)
+---
+
+## Возможности
+
+- Привычки двух типов: числовые (подтягивания, страницы, км) и простые (отметить / не отметить)
+- Дневной дашборд с прогресс-барами и стриками
+- Кнопки быстрого ввода (+1, +5, +10 и т.д.)
+- Календарь выполнения за месяц
+- Статистика с графиками за 7 / 30 дней
+- Gym Mode — запись тренировок (упражнение, вес, повторы) + аналитика тоннажа и топ-3 упражнений
+- Светлая / тёмная тема, интерфейс на русском и английском
+- Push-уведомления в 8:00, 13:00 и 20:00 по Алматы (если есть невыполненные привычки)
+- Вход через email/пароль или Google OAuth
+
+---
+
+## Стек
+
+| Слой | Технология |
+|---|---|
+| Хостинг | Cloudflare Workers |
+| База данных | Cloudflare D1 (SQLite) |
+| Фронтенд | Vanilla JS SPA, Tailwind CSS |
+| Push-уведомления | Web Push API (RFC 8291), VAPID (RFC 8292) |
+| Аутентификация | PBKDF2-SHA256, signed cookie, Google OAuth |
+| Защита | Cloudflare Turnstile, rate limiting |
+
+---
+
+## Структура проекта
+
+```
+_worker.js          бэкенд: API, аутентификация, push, cron-хендлер
+public/
+  index.html        оболочка SPA
+  app.js            весь фронтенд (State → API → Render)
+  sw.js             Service Worker (приём push-уведомлений)
+  style.css         стили (Tailwind + CSS-переменные тем)
+  manifest.json     PWA-манифест
+schema.sql          схема D1: users, activities, logs, workouts, push_subscriptions
+wrangler.jsonc      конфиг Cloudflare Workers (имя, D1, cron)
+generate-vapid-keys.js  разовый скрипт генерации VAPID-ключей
 ```
 
-Откройте в браузере: **http://localhost:8787** (он же `http://127.0.0.1:8787`).
+---
 
-Остановить сервер — `Ctrl+C` в терминале.
+## Полный пайплайн: с нуля до прода
 
-### База данных (D1)
-
-Локальная БД живёт в `.wrangler/state` (создаётся автоматически). Если таблиц ещё нет
-или вы развернули проект с нуля — инициализируйте схему:
+### 1. Установка зависимостей
 
 ```bash
-npm run db:init:local      # применить schema.sql к ЛОКАЛЬНОЙ базе
+npm install
 ```
 
-**Миграции существующей базы.** Схема использует `CREATE TABLE IF NOT EXISTS`, поэтому новые
-колонки в уже созданные таблицы сами не добавятся — для этого есть [migration.sql](migration.sql)
-(точечные `ALTER TABLE`: дефолты упражнений + калории подходов):
+### 2. Локальные переменные окружения
 
 ```bash
-# локально (если таблицы exercises/workout_sets уже были созданы старой схемой):
-npx wrangler d1 execute trecker --local --file=migration.sql
-
-# на проде (выполнять перед деплоем бэкенда с новыми полями):
-npx wrangler d1 execute trecker --remote --file=migration.sql
+cp .dev.vars.example .dev.vars
+# Открой .dev.vars и заполни SESSION_SECRET и VAPID_* (см. шаг 4)
 ```
 
-> SQLite не поддерживает `ADD COLUMN IF NOT EXISTS`. Повторный прогон `migration.sql`
-> на уже мигрированной базе даст ошибку «duplicate column» — это ожидаемо, не страшно.
+### 3. Миграция БД
 
-Полезные проверки:
+Первый раз или после изменений в `schema.sql`:
 
 ```bash
-# какие колонки в таблице
-npx wrangler d1 execute trecker --local --command "SELECT name FROM pragma_table_info('exercises');"
-# последние сохранённые подходы (вес/повторы/калории)
-npx wrangler d1 execute trecker --local --command "SELECT exercise_id, weight, reps, calories FROM workout_sets ORDER BY id DESC LIMIT 5;"
+# Локально (для wrangler dev):
+npm run db:init:local
+
+# Продакшн:
+wrangler d1 execute trecker --remote --file=./schema.sql
 ```
 
-### Деплой
+### 4. VAPID-ключи для push-уведомлений (один раз)
+
+```bash
+node generate-vapid-keys.js
+```
+
+Скрипт выведет ключи. Устанавливаем их как secrets в Cloudflare:
+
+```bash
+echo "ПУБЛИЧНЫЙ_КЛЮЧ"       | wrangler secret put VAPID_PUBLIC_KEY
+echo "ПРИВАТНЫЙ_КЛЮЧ"       | wrangler secret put VAPID_PRIVATE_KEY
+echo "mailto:naziz.kz@gmail.com" | wrangler secret put VAPID_EMAIL
+```
+
+Также добавить обязательный секрет сессии (если ещё не задан):
+
+```bash
+echo "длинная-случайная-строка" | wrangler secret put SESSION_SECRET
+```
+
+### 5. Локальная разработка
+
+```bash
+npm run dev   # http://localhost:8787
+```
+
+### 6. Деплой в продакшн
 
 ```bash
 npm run deploy
 ```
 
-## Вход через Google (OAuth)
-
-Реализован как фича-флаг: кнопка «Войти через Google» включается автоматически,
-когда в Cloudflare заданы секреты `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET`.
-Фронт узнаёт о включении из `/api/config` (`googleEnabled: true`).
-
-OAuth-клиент: проект Google Cloud `habit-tracker` (`habit-tracker-498209`),
-client name «Habit Tracker Web».
-
-Redirect URI:
-- `https://sport.ms-cert.workers.dev/api/auth/google/callback`
-- `http://localhost:8787/api/auth/google/callback`
-
-### Важные нюансы
-
-1. **Режим Testing.** Сейчас войти могут только test users из Google Console —
-   пока это только `naziz.kz@gmail.com`. Чтобы пускать любых пользователей, надо
-   в Google Console нажать **Publish app** (для базовых scope `email`/`profile`/`openid`
-   верификация Google обычно не требуется).
-
-2. **Засветившийся секрет.** `CLIENT_SECRET` мелькнул в чате. Он уже лежит в
-   Cloudflare и больше нигде не нужен. Если хочешь перестраховаться — в
-   Google Console → **Clients → Habit Tracker Web → Reset secret**, затем перезаписать
-   его в Cloudflare:
-   ```
-   npx wrangler secret put GOOGLE_CLIENT_SECRET
-   ```
-
-3. **Авто-деплой из Git.** Секреты хранятся отдельно от кода и переживают редеплои —
-   следующий деплой из Git их не сотрёт.
-
-### Как задать секреты заново (на новом окружении)
+После деплоя в консоли должно быть:
 
 ```
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
+Deployed sport triggers
+  https://sport.ms-cert.workers.dev
+  schedule: 0 3 * * *    ← 8:00 Алматы
+  schedule: 0 8 * * *    ← 13:00 Алматы
+  schedule: 0 15 * * *   ← 20:00 Алматы
 ```
 
-Колонка `users.google_id` и индекс `idx_users_google` должны существовать в D1
-(см. [schema.sql](schema.sql)).
+---
+
+## Push-уведомления
+
+Уведомления приходят **только если хотя бы одна привычка за день не выполнена**.
+
+| Время (Алматы) | UTC | Заголовок | Текст |
+|---|---|---|---|
+| 8:00 | 03:00 | 🌅 Герой, доброе утро! | Начни день — отметь первые привычки! |
+| 13:00 | 08:00 | 💪 Герой, время обеда! | Привычки сами себя не отметят 😄 |
+| 20:00 | 15:00 | 🌙 Герой, добрый вечер! | Последний шанс закрыть день на 100%! |
+
+Для подписки на телефоне: открыть приложение → **Профиль** → **Уведомления** → **Включить**.
+
+---
+
+## Переменные окружения
+
+| Переменная | Где задать | Описание |
+|---|---|---|
+| `SESSION_SECRET` | `wrangler secret` | Секрет для подписи cookie-сессий |
+| `VAPID_PUBLIC_KEY` | `wrangler secret` | Публичный VAPID-ключ (P-256, base64url) |
+| `VAPID_PRIVATE_KEY` | `wrangler secret` | Приватный VAPID-ключ |
+| `VAPID_EMAIL` | `wrangler secret` | Контактный email для VAPID |
+| `GOOGLE_CLIENT_ID` | `wrangler secret` | Google OAuth (опционально) |
+| `GOOGLE_CLIENT_SECRET` | `wrangler secret` | Google OAuth (опционально) |
+| `TURNSTILE_SITEKEY` | `wrangler secret` | Cloudflare Turnstile (опционально) |
+| `TURNSTILE_SECRET` | `wrangler secret` | Cloudflare Turnstile (опционально) |
