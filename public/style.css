@@ -60,6 +60,9 @@ html.dark {
 }
 
 /* ====================== БАЗА ====================== */
+html, body {
+  overflow-x: hidden;
+}
 body {
   background-color: rgb(var(--background));
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -122,9 +125,22 @@ body,
   grid-template-columns: 1fr;
   gap: 24px;
   align-items: stretch;
+  min-width: 0;
 }
+/* Защита от горизонтального переполнения: элементы сетки не шире колонки */
+.card-grid > * { min-width: 0; max-width: 100%; }
 @media (min-width: 768px) {
   .card-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
+
+/* Выполненные карточки слегка приглушены (см. isHabitDone в app.js) */
+.habit-done { opacity: 0.55; transition: opacity 0.3s ease; }
+.habit-done:hover { opacity: 0.85; }
+
+/* Узкие телефоны: уменьшаем паддинг/радиус карточек, чтобы контент не уезжал за край */
+@media (max-width: 420px) {
+  .content { padding: 16px 12px; }
+  .card-grid > .glass-panel { padding: 16px; border-radius: 24px; }
 }
 
 /* Верхняя панель (только смартфоны): логотип + колокольчик */
@@ -508,6 +524,92 @@ html.dark .theme-switch .knob { transform: translateX(24px); }
   animation: fadeInScale 0.2s ease forwards;
 }
 
+/* Менеджер упражнений внутри Gym-модалки */
+.gym-ex-manager {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgb(var(--surface-container) / 0.6);
+  border: 1px solid rgb(var(--outline-variant) / 0.35);
+  animation: fadeInScale 0.2s ease forwards;
+}
+
+/* Карточка лога в "Recent Activity" — 3 строгие flex-зоны (фикс наложения на мобиле) */
+.log-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgb(var(--surface-container) / 0.5);
+  border: 1px solid rgb(var(--outline-variant) / 0.2);
+  transition: background-color 0.2s ease;
+}
+.log-card:hover { background: rgb(var(--surface-container)); }
+/* Левая зона: иконка — без сжатия */
+.log-card__icon { flex-shrink: 0; }
+/* Центральная зона: колонка число+подпись, с обрезкой при переполнении */
+.log-card__main {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.log-card__title {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.log-card__sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Правая зона: кнопки действий — по центру, без сжатия */
+.log-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Запас снизу под списком логов, чтобы последний элемент скроллился выше FAB и таб-бара */
+.log-section { margin-bottom: 120px; }
+
+/* Календарь тренировок (gym-дашборд) */
+.gym-cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.gym-cal__dow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(var(--on-surface-variant) / 0.7);
+  padding-bottom: 4px;
+}
+.gym-cal__day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--on-surface));
+}
+.gym-cal__day--active {
+  background: rgb(var(--primary));
+  color: rgb(var(--on-primary));
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.gym-cal__day--active:active { transform: scale(0.9); }
+.gym-cal__day--today { outline: 2px solid rgb(var(--primary) / 0.5); outline-offset: -2px; }
+
 /* ====================== КАЛЕНДАРЬ ====================== */
 .cal-grid {
   display: grid;
@@ -534,11 +636,21 @@ html.dark .theme-switch .knob { transform: translateX(24px); }
   font-weight: 600;
   color: rgb(var(--on-surface));
   background: rgb(var(--surface-container) / 0.5);
+  border: none;
+  font-family: inherit;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
+button.cal-cell { cursor: pointer; }
+button.cal-cell:hover { transform: scale(1.06); box-shadow: 0 4px 14px rgb(0 0 0 / 0.25); }
+button.cal-cell:active { transform: scale(0.96); }
 .cal-cell.empty { background: transparent; }
 .cal-cell.today {
   outline: 2px solid rgb(var(--primary));
   color: rgb(var(--primary));
+}
+.cal-cell--perfect {
+  outline: 2px solid #f5b400;
+  box-shadow: 0 0 12px rgb(245 180 0 / 0.45);
 }
 .cal-dots {
   display: flex;
@@ -550,6 +662,130 @@ html.dark .theme-switch .knob { transform: translateX(24px); }
   width: 6px; height: 6px;
   border-radius: 50%;
 }
+
+/* «Сегодня» в шапке навигации */
+.cal-today-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--primary) / 0.4);
+  color: rgb(var(--primary));
+  background: rgb(var(--primary) / 0.08);
+  cursor: pointer;
+}
+.cal-today-btn:active { transform: scale(0.95); }
+
+/* Чипы-фильтры по привычке */
+.cal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 170px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--on-surface-variant));
+  background: rgb(var(--surface-container) / 0.6);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.cal-chip:active { transform: scale(0.96); }
+.cal-chip--active {
+  color: rgb(var(--on-surface));
+  border-color: rgb(var(--primary) / 0.6);
+  background: rgb(var(--primary) / 0.12);
+}
+.cal-chip__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Панель деталей дня */
+.cal-perfect-badge { color: #f5b400; }
+.cal-detail-row { padding: 7px 0; border-top: 1px solid rgb(var(--on-surface) / 0.06); }
+.cal-detail-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(var(--on-surface) / 0.08);
+  margin-top: 5px;
+  overflow: hidden;
+}
+.cal-detail-bar > i { display: block; height: 100%; border-radius: 999px; }
+
+/* Инсайт по дням недели */
+.cal-weekday-bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  align-items: end;
+}
+.cal-wd { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.cal-wd__track {
+  width: 100%;
+  height: 80px;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 8px;
+  background: rgb(var(--surface-container) / 0.5);
+  overflow: hidden;
+}
+.cal-wd__track > i {
+  width: 100%;
+  background: rgb(var(--primary));
+  border-radius: 8px 8px 0 0;
+  min-height: 2px;
+}
+.cal-wd__val { font-size: 10px; font-weight: 700; color: rgb(var(--on-surface)); }
+.cal-wd__lbl { font-size: 10px; color: rgb(var(--on-surface-variant)); text-transform: uppercase; }
+
+/* Годовой heatmap (GitHub-style) */
+.cal-year-toggle {
+  display: block;
+  margin: 0 auto;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--primary));
+  background: rgb(var(--primary) / 0.08);
+  border: 1px solid rgb(var(--primary) / 0.3);
+  cursor: pointer;
+}
+.cal-year-toggle:active { transform: scale(0.97); }
+.cal-year {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  overflow-x: auto;
+}
+.cal-year__cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: rgb(var(--surface-container) / 0.7);
+}
+.cal-year__cell--l0 { background: rgb(var(--on-surface) / 0.08); }
+.cal-year__cell--l1 { background: rgb(var(--primary) / 0.30); }
+.cal-year__cell--l2 { background: rgb(var(--primary) / 0.55); }
+.cal-year__cell--l3 { background: rgb(var(--primary) / 0.78); }
+.cal-year__cell--l4 { background: rgb(var(--primary)); }
+.cal-year__legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  font-size: 11px;
+  color: rgb(var(--on-surface-variant));
+}
+.cal-year__legend i { display: inline-block; }
 
 /* ====================== NEON DASHBOARD (только тёмная тема) ======================
    Все правила scoped под html.dark — светлая тема не меняется.

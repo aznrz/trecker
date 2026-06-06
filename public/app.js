@@ -16,6 +16,12 @@ const state = {
   statsMode: 'habits', // 'habits' | 'gym' — режим вкладки Stats
   selectedColor: '#0059b5',
   gymSets: [], // подходы текущей тренировки (Gym Mode)
+  gymExercises: [], // справочник упражнений с дефолтами (кэш из /api/exercises)
+  gymStatsExerciseId: null, // выбранное упражнение для графика прогресса
+  gymCalDate: null, // выбранный день в календаре тренировок
+  calMonth: null, // 'YYYY-MM' — отображаемый месяц в календаре привычек
+  calHabitFilter: null, // null = все привычки, либо activity.id для фокуса на одной
+  calShowYear: false, // показан ли годовой heatmap
   lang: (() => {
     try {
       return localStorage.getItem('antigravity-lang') || (navigator.language.startsWith('ru') ? 'ru' : 'en');
@@ -151,11 +157,30 @@ const TRANSLATIONS = {
     // Calendar
     calendar_title: 'Calendar',
     completed_habits_sub: 'Days with completed habits',
-    legend: 'Colored dots under a date mark habits completed that day.',
+    legend: 'Cell brightness = share of habits done that day. Dots show which habits.',
     failed_load_calendar: 'Failed to load calendar',
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     weekdays_short: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+    cal_today_btn: 'Today',
+    cal_filter_all: 'All',
+    cal_summary: '{active} active days · {rate}% done · {perfect} perfect · best streak {streak}',
+    cal_tap_hint: 'Tap a day to see details.',
+    cal_day_detail_title: 'Habits on {date}',
+    cal_habits_done: '{n} of {m} habits',
+    cal_goal_met: 'goal ✓',
+    cal_goal_miss: 'in progress',
+    cal_no_activity: 'No activity this day.',
+    cal_perfect_day: 'Perfect day 🏆',
+    cal_weekday_insight: 'Consistency by weekday',
+    cal_best_day: 'Strongest: {d}',
+    cal_worst_day: 'Weakest: {d}',
+    cal_year_heatmap: 'Year overview',
+    cal_show_year: 'Show year',
+    cal_hide_year: 'Hide year',
+    cal_less: 'less',
+    cal_more: 'more',
+    cal_year_tip: '{date}: {n} of {m} habits',
 
     // Stats
     stats_title: 'Stats',
@@ -193,6 +218,34 @@ const TRANSLATIONS = {
     no_workouts_yet: 'No workouts yet',
     finish_workout_analytics: 'Finish a workout in Gym Mode to see analytics.',
     failed_load_gym: 'Failed to load gym stats',
+    calories: 'CALORIES (KCAL)',
+    manage_exercises: 'Manage',
+    add_exercise: 'NEW EXERCISE',
+    exercise_name_ph: 'Exercise name',
+    def_weight_ph: 'kg',
+    def_reps_ph: 'reps',
+    def_sets_ph: 'sets',
+    def_calories_ph: 'kcal',
+    save: 'SAVE',
+    exercise_saved: 'Exercise saved',
+    exercise_name_required: 'Enter an exercise name',
+    failed_save_exercise: 'Failed to save exercise',
+    failed_load_exercises: 'Failed to load exercises',
+    edit_exercise: 'EDIT EXERCISE',
+    new_exercise_btn: 'New',
+    add_n_sets: 'Add {n} sets',
+    muscle_group_label: 'MUSCLE GROUP',
+    muscle_distribution: 'Muscle Group Distribution',
+    muscle_distribution_sub: 'Sets per muscle group · last 30 days',
+    sets_count: '{n} sets',
+    kcal_burned: 'kcal burned',
+    workout_calendar: 'Workout Calendar',
+    weight_progress: 'Weight Progress',
+    sets_on_day: 'Sets on {date}',
+    no_sets_on_day: 'No sets on this day',
+    tap_day_hint: 'Tap a highlighted day to see its sets',
+    no_progress_data: 'Not enough data for a chart yet',
+    period_days: 'last {n} days',
 
     // Modals
     new_habit: 'New Habit',
@@ -205,6 +258,18 @@ const TRANSLATIONS = {
     daily_goal: 'DAILY GOAL',
     quick_add_buttons: 'QUICK ADD BUTTONS',
     quick_add_sub: 'Empty fields are hidden on the card.',
+    track_calories: 'TRACK CALORIES',
+    calorie_direction: 'DIRECTION',
+    calorie_burned: 'Burned',
+    calorie_saved: 'Saved',
+    calories_per_unit: 'KCAL PER UNIT',
+    calories_hint: 'Per one execution; for numeric habits it scales with the amount.',
+    calories_widget_title: 'CALORIES',
+    body_metrics: 'Body metrics',
+    weight_kg_label: 'WEIGHT (KG)',
+    height_cm_label: 'HEIGHT (CM)',
+    body_saved: 'Body metrics saved',
+    failed_save_body: 'Failed to save body metrics',
     color_label: 'COLOR',
     emoji_label: 'EMOJI',
     delete_btn: 'DELETE',
@@ -348,11 +413,30 @@ const TRANSLATIONS = {
     // Calendar
     calendar_title: 'Календарь',
     completed_habits_sub: 'Дни с выполненными привычками',
-    legend: 'Цветные точки под датой отмечают выполненные в этот день привычки.',
+    legend: 'Яркость ячейки — доля выполненных привычек за день. Точки — какие именно.',
     failed_load_calendar: 'Не удалось загрузить календарь',
     months: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'],
     weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
     weekdays_short: ['В', 'П', 'В', 'С', 'Ч', 'П', 'С'],
+    cal_today_btn: 'Сегодня',
+    cal_filter_all: 'Все',
+    cal_summary: '{active} актив. дней · {rate}% выполнено · {perfect} идеальных · стрик {streak}',
+    cal_tap_hint: 'Нажмите на день, чтобы увидеть детали.',
+    cal_day_detail_title: 'Привычки за {date}',
+    cal_habits_done: '{n} из {m} привычек',
+    cal_goal_met: 'цель ✓',
+    cal_goal_miss: 'в процессе',
+    cal_no_activity: 'В этот день активности не было.',
+    cal_perfect_day: 'Идеальный день 🏆',
+    cal_weekday_insight: 'Стабильность по дням недели',
+    cal_best_day: 'Сильнее всего: {d}',
+    cal_worst_day: 'Слабее всего: {d}',
+    cal_year_heatmap: 'Обзор года',
+    cal_show_year: 'Показать год',
+    cal_hide_year: 'Скрыть год',
+    cal_less: 'меньше',
+    cal_more: 'больше',
+    cal_year_tip: '{date}: {n} из {m} привычек',
 
     // Stats
     stats_title: 'Статистика',
@@ -390,6 +474,34 @@ const TRANSLATIONS = {
     no_workouts_yet: 'Нет тренировок',
     finish_workout_analytics: 'Завершите тренировку в режиме Зал, чтобы увидеть аналитику.',
     failed_load_gym: 'Не удалось загрузить статистику зала',
+    calories: 'КАЛОРИИ (ККАЛ)',
+    manage_exercises: 'Управление',
+    add_exercise: 'НОВОЕ УПРАЖНЕНИЕ',
+    exercise_name_ph: 'Название упражнения',
+    def_weight_ph: 'кг',
+    def_reps_ph: 'повт.',
+    def_sets_ph: 'подх.',
+    def_calories_ph: 'ккал',
+    save: 'СОХРАНИТЬ',
+    exercise_saved: 'Упражнение сохранено',
+    exercise_name_required: 'Введите название упражнения',
+    failed_save_exercise: 'Не удалось сохранить упражнение',
+    failed_load_exercises: 'Не удалось загрузить упражнения',
+    edit_exercise: 'РЕДАКТИРОВАТЬ',
+    new_exercise_btn: 'Новое',
+    add_n_sets: 'Добавить подходов: {n}',
+    muscle_group_label: 'ГРУППА МЫШЦ',
+    muscle_distribution: 'Распределение по группам мышц',
+    muscle_distribution_sub: 'Подходы по группам · за 30 дней',
+    sets_count: 'Подходов: {n}',
+    kcal_burned: 'ккал сожжено',
+    workout_calendar: 'Календарь тренировок',
+    weight_progress: 'Прогресс весов',
+    sets_on_day: 'Подходы за {date}',
+    no_sets_on_day: 'Нет подходов в этот день',
+    tap_day_hint: 'Нажмите на выделенный день, чтобы увидеть подходы',
+    no_progress_data: 'Пока недостаточно данных для графика',
+    period_days: 'за {n} дн.',
 
     // Modals
     new_habit: 'Новая привычка',
@@ -402,6 +514,18 @@ const TRANSLATIONS = {
     daily_goal: 'ДНЕВНАЯ ЦЕЛЬ',
     quick_add_buttons: 'КНОПКИ БЫСТРОГО ДОБАВЛЕНИЯ',
     quick_add_sub: 'Пустые поля будут скрыты на карточке.',
+    track_calories: 'УЧЁТ КАЛОРИЙ',
+    calorie_direction: 'НАПРАВЛЕНИЕ',
+    calorie_burned: 'Сожжено',
+    calorie_saved: 'Сэкономлено',
+    calories_per_unit: 'ККАЛ ЗА ЕДИНИЦУ',
+    calories_hint: 'За одно выполнение; для числовых привычек умножается на количество.',
+    calories_widget_title: 'КАЛОРИИ',
+    body_metrics: 'Параметры тела',
+    weight_kg_label: 'ВЕС (КГ)',
+    height_cm_label: 'РОСТ (СМ)',
+    body_saved: 'Параметры тела сохранены',
+    failed_save_body: 'Не удалось сохранить параметры',
     color_label: 'ЦВЕТ',
     emoji_label: 'ЭМОДЗИ',
     delete_btn: 'УДАЛИТЬ',
@@ -470,6 +594,25 @@ const MOTIVATION = {
     'Мотивация помогает начать, привычка помогает продолжать. Вперед!',
   ]
 };
+
+// Справочник поддерживаемых языков (единая точка для переключателя и автодетекта).
+// Чтобы добавить язык: добавьте запись сюда И одноимённый словарь в TRANSLATIONS (ключ = code).
+// Весь остальной UI (переключатель, t(), автодетект) подхватит его автоматически.
+const LANGUAGES = [
+  { code: 'en', label: 'ENG', name: 'English' },
+  { code: 'ru', label: 'RUS', name: 'Русский' },
+];
+function isSupportedLang(code) { return LANGUAGES.some((l) => l.code === code); }
+// Язык по умолчанию: сохранённый (если поддерживается) → по языку браузера → первый из справочника.
+function detectLang() {
+  try {
+    const saved = localStorage.getItem('antigravity-lang');
+    if (saved && isSupportedLang(saved)) return saved;
+    const nav = (navigator.language || '').slice(0, 2).toLowerCase();
+    if (isSupportedLang(nav)) return nav;
+  } catch (e) {}
+  return LANGUAGES[0].code;
+}
 
 function t(key, replacements = {}) {
   const dict = TRANSLATIONS[state.lang] || TRANSLATIONS.en;
@@ -566,6 +709,7 @@ async function fetchJson(url, options = {}) {
 
 const api = {
   getMe: () => fetchJson('/api/me'),
+  updateMe: (data) => fetchJson('/api/me', { method: 'PATCH', body: JSON.stringify(data) }),
   getConfig: () => fetchJson('/api/config'),
   login: (email, password, turnstile) => fetchJson('/api/login', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
   register: (email, password, turnstile) => fetchJson('/api/register', { method: 'POST', body: JSON.stringify({ email, password, turnstile }) }),
@@ -583,6 +727,13 @@ const api = {
   getStats: (day, days) => fetchJson(`/api/stats?today=${day}&days=${days}`),
   saveWorkout: (day, sets) => fetchJson('/api/workouts', { method: 'POST', body: JSON.stringify({ day, sets }) }),
   getWorkoutStats: (day) => fetchJson(`/api/workouts/stats?today=${day}`),
+  getExercises: () => fetchJson('/api/exercises'),
+  createExercise: (data) => fetchJson('/api/exercises', { method: 'POST', body: JSON.stringify(data) }),
+  updateExercise: (id, data) => fetchJson(`/api/exercises/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteExercise: (id) => fetchJson(`/api/exercises/${id}`, { method: 'DELETE' }),
+  getWorkoutDay: (day) => fetchJson(`/api/workouts/day?day=${day}`),
+  getExerciseProgress: (id) => fetchJson(`/api/workouts/progress?exercise_id=${id}`),
+  getMuscleStats: (day) => fetchJson(`/api/workouts/muscles?today=${day}`),
   getLogs: (activityId) => fetchJson(`/api/activities/${activityId}/logs`),
   deleteLog: (id) => fetchJson(`/api/logs/${id}`, { method: 'DELETE' }),
   updateLog: (id, amount) => fetchJson(`/api/logs/${id}`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
@@ -757,8 +908,17 @@ async function renderDashboardTab() {
   `;
   grid.appendChild(summary);
 
-  activities.forEach((act) => grid.appendChild(habitCard(act, todayDate)));
+  // Выполненные карточки опускаем в конец (стабильная сортировка сохраняет порядок внутри групп)
+  const ordered = [...activities].sort((a, b) => (isHabitDone(a) ? 1 : 0) - (isHabitDone(b) ? 1 : 0));
+  ordered.forEach((act) => grid.appendChild(habitCard(act, todayDate)));
   viewContainer.appendChild(grid);
+}
+
+// «Выполнена ли привычка сегодня»: simple — отмечена; numeric — достигнута цель (100%).
+function isHabitDone(act) {
+  return act.type === 'simple'
+    ? act.today_total > 0
+    : (act.daily_goal > 0 && act.today_total >= act.daily_goal);
 }
 
 function habitCard(act, todayDate) {
@@ -767,6 +927,7 @@ function habitCard(act, todayDate) {
   // h-full + flex-col + mt-auto на блоке кнопок → карточки в ряду одинаковой высоты, кнопки прижаты к низу (задача 8)
   card.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col gap-md group hover:border-primary/30 transition-all duration-500 cursor-pointer';
   card.addEventListener('click', () => { state.selectedActivityId = act.id; renderCurrentTab(); });
+  if (isHabitDone(act)) card.classList.add('habit-done');
 
   const isSimple = act.type === 'simple';
   const doneToday = act.today_total > 0;
@@ -774,7 +935,7 @@ function habitCard(act, todayDate) {
   if (isSimple) percent = doneToday ? 100 : 0;
   else if (act.daily_goal > 0) percent = Math.min((act.today_total / act.daily_goal) * 100, 100);
   else if (act.today_total > 0) percent = 100;
-  const done = isSimple ? doneToday : (act.daily_goal > 0 && act.today_total >= act.daily_goal);
+  const done = isHabitDone(act);
 
   // Шапка: название + стрик + (numeric — счётчик / simple — статус-галочка)
   const head = document.createElement('div');
@@ -868,12 +1029,12 @@ function habitCard(act, todayDate) {
   } else {
     // Кнопки не заданы — ручной ввод + «Записать» (+ Done при наличии цели)
     const row = document.createElement('div');
-    row.className = 'flex gap-sm mt-auto';
+    row.className = 'flex flex-wrap gap-sm mt-auto';
     const input = document.createElement('input');
     input.type = 'number';
     input.min = '0'; input.step = 'any';
     input.placeholder = act.unit || 'number';
-    input.className = 'field-input flex-1 py-2';
+    input.className = 'field-input flex-1 min-w-0 py-2';
     input.addEventListener('click', (e) => e.stopPropagation());
     const add = document.createElement('button');
     add.type = 'button';
@@ -1059,7 +1220,7 @@ async function renderActivityDetail(activityId) {
 
   // Последние логи
   const logSec = document.createElement('section');
-  logSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  logSec.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 log-section';
   logSec.innerHTML = `<h3 class="text-headline-md font-headline-md mb-6">${t('recent_activity')}</h3>`;
   const logList = document.createElement('div');
   logList.className = 'space-y-4';
@@ -1088,29 +1249,30 @@ async function renderActivityDetail(activityId) {
       const dateFormatted = `${p[2]}.${p[1]}.${p[0]}`;
 
       const item = document.createElement('div');
-      item.className = 'flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20 hover:bg-surface-container transition-colors';
-      
-      const leftSide = document.createElement('div');
-      leftSide.className = 'flex items-center gap-4 min-w-0';
-      leftSide.innerHTML = `
-        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-          <span class="material-symbols-outlined">event_available</span>
-        </div>
-        <div class="min-w-0">
-          <p class="text-label-md font-label-md font-bold truncate">${dateFormatted} <span class="text-xs font-normal text-on-surface-variant/60 ml-1">${timeStr}</span></p>
-          <p class="text-label-sm font-label-sm text-on-surface-variant">${isSimple ? t('check_in') : t('amount_logged')}</p>
-        </div>
+      item.className = 'log-card';
+
+      // Левая зона — иконка (запрет сжатия)
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'log-card__icon w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary';
+      iconWrap.innerHTML = '<span class="material-symbols-outlined">event_available</span>';
+      item.appendChild(iconWrap);
+
+      // Центральная зона — колонка: крупное значение (заголовок) + подпись (подзаголовок)
+      const main = document.createElement('div');
+      main.className = 'log-card__main';
+      const titleHtml = isSimple
+        ? '<span class="material-symbols-outlined text-3xl leading-none" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>'
+        : `<span class="text-headline-md font-headline-md text-primary leading-none">${Number(log.amount.toFixed(1))}</span><span class="text-label-sm text-outline">${esc(act.unit || '')}</span>`;
+      const subMeta = dateFormatted + (timeStr ? ' · ' + timeStr : '');
+      main.innerHTML = `
+        <div class="log-card__title">${titleHtml}</div>
+        <p class="log-card__sub text-label-sm font-label-sm text-on-surface-variant">${isSimple ? t('check_in') : t('amount_logged')} · ${subMeta}</p>
       `;
-      item.appendChild(leftSide);
+      item.appendChild(main);
 
+      // Правая зона — кнопки действий (выравнивание по центру)
       const rightSide = document.createElement('div');
-      rightSide.className = 'flex items-center gap-3 shrink-0';
-
-      if (isSimple) {
-        rightSide.innerHTML += '<span class="material-symbols-outlined text-3xl" style="color:rgb(var(--secondary));font-variation-settings:\'FILL\' 1;">check_circle</span>';
-      } else {
-        rightSide.innerHTML += `<p class="text-headline-md font-headline-md text-primary">${Number(log.amount.toFixed(1))} <span class="text-label-sm text-outline">${esc(act.unit || '')}</span></p>`;
-      }
+      rightSide.className = 'log-card__actions';
 
       // Кнопка редактирования (только для численных привычек)
       if (!isSimple) {
@@ -1202,7 +1364,7 @@ function languageToggleRow() {
   const seg = document.createElement('div');
   seg.className = 'flex bg-surface-container rounded-xl p-1 border border-outline-variant/40';
   
-  [['en', 'ENG'], ['ru', 'RUS']].forEach(([langCode, langLabel]) => {
+  LANGUAGES.forEach(({ code: langCode, label: langLabel, name: langName }) => {
     const b = document.createElement('button');
     b.type = 'button';
     const active = state.lang === langCode;
@@ -1210,6 +1372,7 @@ function languageToggleRow() {
       ? 'px-3 py-1.5 rounded-lg bg-primary text-on-primary text-label-sm font-label-md transition-all'
       : 'px-3 py-1.5 rounded-lg text-on-surface-variant text-label-sm font-label-md transition-all';
     b.textContent = langLabel;
+    b.title = langName || langLabel; // полное имя языка — в подсказке
     b.addEventListener('click', () => {
       if (state.lang !== langCode) {
         state.lang = langCode;
@@ -1349,7 +1512,6 @@ async function healthSyncCard() {
       return;
     }
 
-    // Token row
     const row = document.createElement('div');
     row.className = 'flex items-center gap-2 mb-2';
 
@@ -1404,7 +1566,6 @@ async function healthSyncCard() {
     });
     tokenSection.appendChild(regenBtn);
 
-    // Instruction
     const instr = document.createElement('p');
     instr.className = 'text-label-sm font-label-sm text-on-surface-variant mt-3 leading-relaxed';
     instr.innerHTML = t('tasker_instruction').replace('{url}', window.location.origin);
@@ -1412,6 +1573,59 @@ async function healthSyncCard() {
   }
 
   renderToken(currentToken);
+  return card;
+}
+
+// Карточка параметров тела: вес (кг) и рост (см) + расчёт BMI.
+function bodyMetricsCard() {
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  const u = state.user || {};
+  const renderBmi = () => {
+    const w = parseFloat(weightInput.value), h = parseFloat(heightInput.value);
+    if (isFinite(w) && w > 0 && isFinite(h) && h > 0) {
+      const bmi = w / Math.pow(h / 100, 2);
+      bmiEl.textContent = `BMI ${bmi.toFixed(1)}`;
+    } else {
+      bmiEl.textContent = '';
+    }
+  };
+  card.innerHTML = `
+    <h3 class="text-headline-md font-headline-md mb-md">${t('body_metrics')}</h3>
+    <div class="flex gap-4">
+      <div class="field flex-1">
+        <label for="profileWeightInput" class="field-label">${t('weight_kg_label')}</label>
+        <input type="number" id="profileWeightInput" min="0" step="any" class="field-input" placeholder="80" />
+      </div>
+      <div class="field flex-1">
+        <label for="profileHeightInput" class="field-label">${t('height_cm_label')}</label>
+        <input type="number" id="profileHeightInput" min="0" step="any" class="field-input" placeholder="180" />
+      </div>
+    </div>
+    <div class="flex items-center justify-between gap-3 mt-2">
+      <span id="profileBmi" class="text-label-md font-label-md text-secondary"></span>
+      <button type="button" id="profileSaveBody" class="btn-primary px-5">${t('save_btn')}</button>
+    </div>
+  `;
+  const weightInput = card.querySelector('#profileWeightInput');
+  const heightInput = card.querySelector('#profileHeightInput');
+  const bmiEl = card.querySelector('#profileBmi');
+  weightInput.value = u.weight != null ? u.weight : '';
+  heightInput.value = u.height != null ? u.height : '';
+  renderBmi();
+  weightInput.addEventListener('input', renderBmi);
+  heightInput.addEventListener('input', renderBmi);
+  card.querySelector('#profileSaveBody').addEventListener('click', async () => {
+    const num = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null; };
+    const data = { weight: num(weightInput.value), height: num(heightInput.value) };
+    try {
+      await api.updateMe(data);
+      state.user = { ...(state.user || {}), weight: data.weight, height: data.height };
+      showToast(t('body_saved'));
+    } catch (err) {
+      showToast(t('failed_save_body'), 'error');
+    }
+  });
   return card;
 }
 
@@ -1446,6 +1660,9 @@ async function renderProfileTab() {
   viewContainer.appendChild(languageToggleRow());
   viewContainer.appendChild(await notificationRow());
   viewContainer.appendChild(await healthSyncCard());
+
+  // Параметры тела (вес/рост → калории упражнений и BMI)
+  viewContainer.appendChild(bodyMetricsCard());
 
   // Управление привычками
   const habitsHead = document.createElement('div');
@@ -1503,90 +1720,380 @@ async function renderProfileTab() {
 // ==========================================
 // 8.5 КАЛЕНДАРЬ (сетка месяца с отметками выполнения)
 // ==========================================
+// hex (#rrggbb) → rgba-строка с заданной альфой; некорректный ввод → primary
+function hexToRgba(hex, a) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m) return `rgb(var(--primary) / ${a})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
 async function renderCalendarTab() {
   viewContainer.appendChild(pageHeader(t('calendar_title'), t('completed_habits_sub')));
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-based
-  const todayDate = localDay();
+  if (!state.calMonth) state.calMonth = localDay().slice(0, 7); // 'YYYY-MM'
+  const todayStr = localDay();
+  const curYm = todayStr.slice(0, 7);
 
-  // Тянем статистику с начала месяца по сегодня, чтобы знать дни с активностью
-  const daysSoFar = now.getDate();
-  let resp;
-  try {
-    resp = await api.getStats(todayDate, daysSoFar);
-  } catch (err) {
-    showToast(t('failed_load_calendar'), 'error');
-    return;
-  }
-  const activities = resp.activities || [];
-
-  // Карта: день (YYYY-MM-DD) → массив цветов выполнивших привычек
-  const dotsByDay = {};
-  activities.forEach((act) => {
-    const color = act.color || '#0059b5';
-    (act.series || []).forEach((s) => {
-      if (s.total > 0) {
-        (dotsByDay[s.day] = dotsByDay[s.day] || []).push(color);
-      }
-    });
-  });
-
-  const monthNames = t('months');
   const wrap = document.createElement('div');
   wrap.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5';
-  wrap.innerHTML = `<h3 class="text-headline-md font-headline-md mb-md text-center">${monthNames[month]} ${year}</h3>`;
-
-  // Заголовки дней недели (Пн..Вс)
-  const grid = document.createElement('div');
-  grid.className = 'cal-grid';
-  t('weekdays').forEach((d) => {
-    const dow = document.createElement('div');
-    dow.className = 'cal-dow';
-    dow.textContent = d;
-    grid.appendChild(dow);
-  });
-
-  // Пустые ячейки до первого дня (неделя начинается с понедельника)
-  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = Пн
-  for (let i = 0; i < firstDow; i++) {
-    const e = document.createElement('div');
-    e.className = 'cal-cell empty';
-    grid.appendChild(e);
-  }
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  for (let day = 1; day <= daysInMonth; day++) {
-    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell' + (iso === todayDate ? ' today' : '');
-
-    const num = document.createElement('span');
-    num.textContent = day;
-    cell.appendChild(num);
-
-    const dots = document.createElement('div');
-    dots.className = 'cal-dots';
-    const colors = [...new Set(dotsByDay[iso] || [])].slice(0, 3);
-    colors.forEach((c) => {
-      const dot = document.createElement('span');
-      dot.className = 'cal-dot';
-      dot.style.background = c;
-      dots.appendChild(dot);
-    });
-    cell.appendChild(dots);
-    grid.appendChild(cell);
-  }
-
-  wrap.appendChild(grid);
   viewContainer.appendChild(wrap);
+
+  const insightHost = document.createElement('div'); // блок «по дням недели»
+  viewContainer.appendChild(insightHost);
+  const yearHost = document.createElement('div'); // годовой heatmap
+  viewContainer.appendChild(yearHost);
 
   // Легенда
   const legend = document.createElement('p');
   legend.className = 'text-label-sm font-label-sm text-on-surface-variant text-center mt-md';
   legend.textContent = t('legend');
   viewContainer.appendChild(legend);
+
+  // Метаданные месяца 'YYYY-MM'
+  function monthBounds(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const last = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    return { y, m, daysInMonth, last };
+  }
+
+  // Загрузка месяца → агрегаты по дням. Окно ≤31 дня укладывается в лимит /api/stats (90).
+  async function loadMonth(ym) {
+    const { daysInMonth, last } = monthBounds(ym);
+    let anchor, days;
+    if (ym === curYm) { anchor = todayStr; days = Number(todayStr.slice(8, 10)); }
+    else { anchor = last; days = daysInMonth; }
+    const resp = await api.getStats(anchor, days);
+    const acts = resp.activities || [];
+    const totalHabits = acts.length;
+    const info = {}; // iso → { perHabit, doneCount, totalHabits, perfect, ratio }
+    let maxSingle = 0; // для нормировки в режиме фильтра
+    acts.forEach((a) => {
+      const color = a.color || '#0059b5';
+      const goal = Number(a.daily_goal) || 0;
+      (a.series || []).forEach((s) => {
+        if (!String(s.day).startsWith(ym)) return;
+        const total = s.total || 0;
+        if (total <= 0) return;
+        if (state.calHabitFilter === a.id && total > maxSingle) maxSingle = total;
+        const done = goal > 0 ? total >= goal : true;
+        (info[s.day] = info[s.day] || { perHabit: [] }).perHabit.push({
+          id: a.id, name: a.name, color, unit: a.unit || '', total, goal, done,
+        });
+      });
+    });
+    Object.keys(info).forEach((iso) => {
+      const d = info[iso];
+      d.totalHabits = totalHabits;
+      d.doneCount = d.perHabit.filter((h) => h.done).length;
+      d.perfect = totalHabits > 0 && d.doneCount === totalHabits; // закрыты все привычки дня
+      d.ratio = totalHabits ? d.doneCount / totalHabits : 0;
+    });
+    return { info, acts, totalHabits, maxSingle };
+  }
+
+  let data = null;
+  const dayDetail = document.createElement('div');
+  dayDetail.className = 'cal-day-detail mt-md';
+
+  function shiftMonth(delta) {
+    const [y, m] = state.calMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    state.calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    draw();
+  }
+
+  function showDay(iso) {
+    dayDetail.textContent = '';
+    const d = data.info[iso];
+    const p = iso.split('-');
+    const dateFmt = `${p[2]}.${p[1]}.${p[0]}`;
+    const title = document.createElement('p');
+    title.className = 'text-label-md font-label-md font-bold mb-2';
+    title.textContent = t('cal_day_detail_title', { date: dateFmt });
+    dayDetail.appendChild(title);
+    if (!d || !d.perHabit.length) {
+      const e = document.createElement('p');
+      e.className = 'text-label-sm font-label-sm text-on-surface-variant';
+      e.textContent = t('cal_no_activity');
+      dayDetail.appendChild(e);
+      return;
+    }
+    if (d.perfect) {
+      const badge = document.createElement('p');
+      badge.className = 'cal-perfect-badge text-label-sm font-label-sm font-bold mb-2';
+      badge.textContent = t('cal_perfect_day');
+      dayDetail.appendChild(badge);
+    }
+    const count = document.createElement('p');
+    count.className = 'text-label-sm font-label-sm text-on-surface-variant mb-2';
+    count.textContent = t('cal_habits_done', { n: d.doneCount, m: d.totalHabits });
+    dayDetail.appendChild(count);
+    d.perHabit.forEach((h) => {
+      const row = document.createElement('div');
+      row.className = 'cal-detail-row';
+      const goalTxt = h.goal > 0 ? ` / ${h.goal}` : '';
+      const badge = h.done ? t('cal_goal_met') : t('cal_goal_miss');
+      const pct = h.goal > 0 ? Math.min(100, Math.round((h.total / h.goal) * 100)) : 100;
+      row.innerHTML = `
+        <div class="flex items-center justify-between gap-2 min-w-0">
+          <span class="text-label-md font-label-md font-bold truncate min-w-0">${esc(h.name)}</span>
+          <span class="text-label-sm font-label-sm text-on-surface-variant shrink-0">${esc(String(h.total))}${goalTxt} ${esc(h.unit)} · ${esc(badge)}</span>
+        </div>
+        <div class="cal-detail-bar"><i style="width:${pct}%;background:${esc(h.color)}"></i></div>
+      `;
+      dayDetail.appendChild(row);
+    });
+  }
+
+  async function draw() {
+    wrap.textContent = '';
+    const [y, m] = state.calMonth.split('-').map(Number);
+
+    // Шапка с навигацией ‹ Месяц Год › + «Сегодня»
+    const nav = document.createElement('div');
+    nav.className = 'flex items-center justify-between mb-md gap-2';
+    const monthTitle = new Date(y, m - 1, 1).toLocaleDateString(state.lang === 'ru' ? 'ru-RU' : 'en-US', { month: 'long', year: 'numeric' });
+    nav.innerHTML = `
+      <button type="button" class="icon-btn" data-nav="-1" aria-label="prev"><span class="material-symbols-outlined">chevron_left</span></button>
+      <div class="flex items-center gap-2">
+        <span class="text-headline-md font-headline-md capitalize">${esc(monthTitle)}</span>
+        ${state.calMonth !== curYm ? `<button type="button" class="cal-today-btn" data-today>${esc(t('cal_today_btn'))}</button>` : ''}
+      </div>
+      <button type="button" class="icon-btn" data-nav="1" aria-label="next"><span class="material-symbols-outlined">chevron_right</span></button>
+    `;
+    nav.querySelector('[data-nav="-1"]').addEventListener('click', () => shiftMonth(-1));
+    nav.querySelector('[data-nav="1"]').addEventListener('click', () => shiftMonth(1));
+    const todayBtn = nav.querySelector('[data-today]');
+    if (todayBtn) todayBtn.addEventListener('click', () => { state.calMonth = curYm; draw(); });
+    wrap.appendChild(nav);
+
+    try {
+      data = await loadMonth(state.calMonth);
+    } catch (err) {
+      showToast(t('failed_load_calendar'), 'error');
+      return;
+    }
+
+    // Чипы-фильтры: «Все» + по привычке
+    const chips = document.createElement('div');
+    chips.className = 'cal-chips';
+    const allChip = document.createElement('button');
+    allChip.type = 'button';
+    allChip.className = 'cal-chip' + (state.calHabitFilter == null ? ' cal-chip--active' : '');
+    allChip.textContent = t('cal_filter_all');
+    allChip.addEventListener('click', () => { state.calHabitFilter = null; draw(); });
+    chips.appendChild(allChip);
+    data.acts.forEach((a) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'cal-chip' + (state.calHabitFilter === a.id ? ' cal-chip--active' : '');
+      chip.innerHTML = `<span class="cal-chip__dot" style="background:${esc(a.color || '#0059b5')}"></span><span class="truncate">${esc(a.name)}</span>`;
+      chip.addEventListener('click', () => { state.calHabitFilter = state.calHabitFilter === a.id ? null : a.id; draw(); });
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+
+    // Сетка
+    const grid = document.createElement('div');
+    grid.className = 'cal-grid';
+    t('weekdays').forEach((d) => {
+      const dow = document.createElement('div');
+      dow.className = 'cal-dow';
+      dow.textContent = d;
+      grid.appendChild(dow);
+    });
+    const firstDow = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    for (let i = 0; i < firstDow; i++) {
+      const e = document.createElement('div');
+      e.className = 'cal-cell empty';
+      grid.appendChild(e);
+    }
+    const filterAct = state.calHabitFilter != null ? data.acts.find((a) => a.id === state.calHabitFilter) : null;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const iso = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const di = data.info[iso];
+      const hasActivity = !!di;
+      const cell = document.createElement(hasActivity ? 'button' : 'div');
+      cell.className = 'cal-cell'
+        + (iso === todayStr ? ' today' : '')
+        + (di && di.perfect && !filterAct ? ' cal-cell--perfect' : '');
+
+      // Heatmap-фон
+      if (filterAct) {
+        const h = di && di.perHabit.find((x) => x.id === filterAct.id);
+        if (h) {
+          const norm = data.maxSingle > 0 ? h.total / data.maxSingle : 0;
+          cell.style.background = hexToRgba(filterAct.color, 0.2 + 0.6 * norm);
+        }
+      } else if (di && di.ratio > 0) {
+        cell.style.background = `rgb(var(--primary) / ${(0.15 + 0.55 * di.ratio).toFixed(2)})`;
+      }
+
+      const num = document.createElement('span');
+      num.textContent = day;
+      cell.appendChild(num);
+
+      // Точки (оставляем)
+      const dots = document.createElement('div');
+      dots.className = 'cal-dots';
+      if (filterAct) {
+        const h = di && di.perHabit.find((x) => x.id === filterAct.id);
+        if (h) {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot';
+          dot.style.background = filterAct.color || '#0059b5';
+          dots.appendChild(dot);
+        }
+      } else if (di) {
+        [...new Set(di.perHabit.map((h) => h.color))].slice(0, 3).forEach((c) => {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot';
+          dot.style.background = c;
+          dots.appendChild(dot);
+        });
+      }
+      cell.appendChild(dots);
+
+      if (hasActivity) {
+        cell.type = 'button';
+        cell.addEventListener('click', () => showDay(iso));
+      }
+      grid.appendChild(cell);
+    }
+    wrap.appendChild(grid);
+    wrap.appendChild(dayDetail);
+    if (!dayDetail.textContent) {
+      dayDetail.innerHTML = `<p class="text-label-sm font-label-sm text-on-surface-variant text-center">${esc(t('cal_tap_hint'))}</p>`;
+    }
+
+    renderWeekdayInsight();
+    renderYearToggle();
+  }
+
+  // ---- Инсайт по дням недели (#9) ----
+  function renderWeekdayInsight() {
+    insightHost.textContent = '';
+    if (!data || !data.totalHabits) return;
+    const [y, m] = state.calMonth.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const lastDay = state.calMonth === curYm ? Number(todayStr.slice(8, 10)) : daysInMonth;
+    const sum = [0, 0, 0, 0, 0, 0, 0];
+    const cnt = [0, 0, 0, 0, 0, 0, 0];
+    for (let day = 1; day <= lastDay; day++) {
+      const iso = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const wd = (new Date(y, m - 1, day).getDay() + 6) % 7; // 0 = Пн
+      sum[wd] += data.info[iso] ? data.info[iso].ratio : 0;
+      cnt[wd] += 1;
+    }
+    const avg = sum.map((s, i) => (cnt[i] ? s / cnt[i] : 0));
+    const max = Math.max(...avg, 0.0001);
+    const labels = t('weekdays');
+    let best = 0, worst = 0;
+    avg.forEach((v, i) => { if (v > avg[best]) best = i; if (v < avg[worst]) worst = i; });
+
+    const card = document.createElement('div');
+    card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mt-md';
+    const head = document.createElement('h3');
+    head.className = 'text-headline-md font-headline-md mb-md';
+    head.textContent = t('cal_weekday_insight');
+    card.appendChild(head);
+    const bars = document.createElement('div');
+    bars.className = 'cal-weekday-bars';
+    avg.forEach((v, i) => {
+      const col = document.createElement('div');
+      col.className = 'cal-wd';
+      col.innerHTML = `
+        <div class="cal-wd__track"><i style="height:${Math.round((v / max) * 100)}%"></i></div>
+        <span class="cal-wd__val">${Math.round(v * 100)}%</span>
+        <span class="cal-wd__lbl">${esc(labels[i])}</span>
+      `;
+      bars.appendChild(col);
+    });
+    card.appendChild(bars);
+    const note = document.createElement('p');
+    note.className = 'text-label-sm font-label-sm text-on-surface-variant mt-md';
+    note.textContent = `${t('cal_best_day', { d: labels[best] })} · ${t('cal_worst_day', { d: labels[worst] })}`;
+    card.appendChild(note);
+    insightHost.appendChild(card);
+  }
+
+  // ---- Годовой heatmap (#11), ленивый ----
+  function renderYearToggle() {
+    yearHost.textContent = '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cal-year-toggle mt-md';
+    btn.textContent = state.calShowYear ? t('cal_hide_year') : t('cal_show_year');
+    btn.addEventListener('click', () => { state.calShowYear = !state.calShowYear; renderYearToggle(); });
+    yearHost.appendChild(btn);
+    if (state.calShowYear) drawYear(yearHost);
+  }
+
+  async function drawYear(host) {
+    const card = document.createElement('div');
+    card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mt-md';
+    card.innerHTML = `<h3 class="text-headline-md font-headline-md mb-md">${esc(t('cal_year_heatmap'))}</h3>`;
+    host.appendChild(card);
+    let resp;
+    try {
+      resp = await api.getStats(todayStr, 365);
+    } catch (e) {
+      showToast(t('failed_load_calendar'), 'error');
+      return;
+    }
+    const acts = resp.activities || [];
+    const totalHabits = acts.length;
+    const done = {};
+    acts.forEach((a) => {
+      const goal = Number(a.daily_goal) || 0;
+      (a.series || []).forEach((s) => {
+        const total = s.total || 0;
+        if (total <= 0) return;
+        const isDone = goal > 0 ? total >= goal : true;
+        if (isDone) done[s.day] = (done[s.day] || 0) + 1;
+      });
+    });
+    const level = (iso) => {
+      const r = totalHabits ? (done[iso] || 0) / totalHabits : 0;
+      if (r <= 0) return 0;
+      if (r < 0.34) return 1;
+      if (r < 0.67) return 2;
+      if (r < 1) return 3;
+      return 4;
+    };
+    // 53 недели назад, выровнено к понедельнику
+    const today = new Date(todayStr + 'T00:00:00');
+    const start = new Date(today);
+    start.setDate(start.getDate() - 364);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // назад к понедельнику
+    const grid = document.createElement('div');
+    grid.className = 'cal-year';
+    const cur = new Date(start);
+    while (cur <= today) {
+      const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+      const cell = document.createElement('div');
+      cell.className = `cal-year__cell cal-year__cell--l${level(iso)}`;
+      cell.setAttribute('title', t('cal_year_tip', { date: iso, n: done[iso] || 0, m: totalHabits }));
+      grid.appendChild(cell);
+      cur.setDate(cur.getDate() + 1);
+    }
+    card.appendChild(grid);
+    const legendRow = document.createElement('div');
+    legendRow.className = 'cal-year__legend';
+    legendRow.innerHTML = `<span>${esc(t('cal_less'))}</span>
+      <i class="cal-year__cell cal-year__cell--l0"></i>
+      <i class="cal-year__cell cal-year__cell--l1"></i>
+      <i class="cal-year__cell cal-year__cell--l2"></i>
+      <i class="cal-year__cell cal-year__cell--l3"></i>
+      <i class="cal-year__cell cal-year__cell--l4"></i>
+      <span>${esc(t('cal_more'))}</span>`;
+    card.appendChild(legendRow);
+  }
+
+  await draw();
 }
 
 // ==========================================
@@ -1657,6 +2164,34 @@ async function renderStatsTab() {
     return;
   }
   const activities = resp.activities || [];
+
+  // Глобальный счётчик калорий (сожжено / сэкономлено) за 7 / 14 / 30 дней.
+  // Показываем только если есть хоть какие-то калорийные данные.
+  const cal = resp.calories || { d7: {}, d14: {}, d30: {} };
+  const calTotal = ['d7', 'd14', 'd30'].reduce((a, k) => a + (cal[k]?.burned || 0) + (cal[k]?.saved || 0), 0);
+  if (calTotal > 0) {
+    const kcal = (v) => Math.round(v || 0).toLocaleString(state.lang === 'ru' ? 'ru-RU' : 'en-US');
+    const wgt = document.createElement('div');
+    wgt.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-gutter';
+    const block = (icon, color, title, kind) => `
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2 ${color} font-semibold">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">${icon}</span>
+          <span class="text-label-md font-label-md uppercase tracking-wider">${title}</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          ${[7, 14, 30].map((w) => miniStat(t('days_btn', { n: w }), kcal(cal['d' + w] && cal['d' + w][kind]))).join('')}
+        </div>
+      </div>`;
+    wgt.innerHTML = `
+      <h3 class="text-headline-md font-headline-md mb-md border-b border-outline-variant/30 pb-3">${t('calories_widget_title')}</h3>
+      <div class="flex flex-col sm:flex-row gap-md">
+        ${block('local_fire_department', 'text-secondary', t('calorie_burned'), 'burned')}
+        ${block('eco', 'text-primary', t('calorie_saved'), 'saved')}
+      </div>`;
+    viewContainer.appendChild(wgt);
+  }
+
   if (activities.length === 0) {
     viewContainer.appendChild(emptyState(t('no_stats_data'), t('log_habits_stats')));
     return;
@@ -1770,25 +2305,36 @@ async function renderGymStats() {
     return;
   }
 
-  const tonnage = resp.tonnage || { d7: 0, d14: 0, d30: 0 };
+  const tonnage = resp.tonnage || { today: 0, d7: 0, d14: 0, d30: 0 };
+  const calories = resp.calories || { today: 0, d7: 0, d14: 0, d30: 0 };
   const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
 
-  // Карточки тоннажа 7 / 14 / 30 дней (неон-свечение из тёмной темы — автоматически)
+  // 1) Карточки период: тоннаж (крупно) + сожжённые калории (мелко) за сегодня / 7 / 14 / 30 дней
   const tonnageGrid = document.createElement('div');
   tonnageGrid.className = 'card-grid mb-md';
-  [[t('days_btn', { n: 7 }), tonnage.d7], [t('days_btn', { n: 14 }), tonnage.d14], [t('days_btn', { n: 30 }), tonnage.d30]].forEach(([label, val]) => {
+  [[t('today_label'), tonnage.today, calories.today], [t('period_days', { n: 7 }), tonnage.d7, calories.d7], [t('period_days', { n: 14 }), tonnage.d14, calories.d14], [t('period_days', { n: 30 }), tonnage.d30, calories.d30]].forEach(([label, tn, cal]) => {
     const c = document.createElement('div');
     c.className = 'h-full glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 flex flex-col items-center justify-center text-center';
     c.innerHTML = `
-      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${t('tonnage_label', { period: label })}</span>
-      <span class="text-headline-xl font-headline-xl text-primary leading-none mt-2">${fmt(val)}</span>
+      <span class="text-label-sm font-label-sm text-outline uppercase tracking-wider">${label}</span>
+      <span class="text-headline-xl font-headline-xl text-primary leading-none mt-2">${fmt(tn)}</span>
       <span class="text-label-sm font-label-sm text-on-surface-variant mt-1">${t('kg_lifted')}</span>
+      <span class="text-label-sm font-label-sm text-secondary mt-2">${fmt(cal)} ${t('kcal_burned')}</span>
     `;
     tonnageGrid.appendChild(c);
   });
   viewContainer.appendChild(tonnageGrid);
 
-  // Топ-3 упражнения по объёму (Volume / Max weight / Est 1RM)
+  // 2) Распределение по группам мышц (горизонтальные прогресс-бары)
+  await renderMuscleDistribution();
+
+  // 3) Календарь тренировок (подсветка дней + подходы за выбранный день)
+  renderWorkoutCalendar(resp.days || []);
+
+  // 4) Прогресс весов по упражнению (SVG-линия макс. веса)
+  await renderWeightProgress();
+
+  // 5) Топ-3 упражнения по объёму (Volume / Max weight / Est 1RM)
   const head = document.createElement('h3');
   head.className = 'text-headline-md font-headline-md mb-md';
   head.textContent = t('top_exercises');
@@ -1814,6 +2360,237 @@ async function renderGymStats() {
     grid.appendChild(c);
   });
   viewContainer.appendChild(grid);
+}
+
+// Распределение по группам мышц — список с горизонтальными прогресс-барами
+async function renderMuscleDistribution() {
+  let data;
+  try { data = await api.getMuscleStats(localDay()); } catch (e) { return; }
+  const muscles = (data && data.muscles) || [];
+  if (!muscles.length) return;
+  const maxSets = Math.max.apply(null, muscles.map((m) => m.sets || 0)) || 1;
+
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-1';
+  head.textContent = t('muscle_distribution');
+  viewContainer.appendChild(head);
+  const sub = document.createElement('p');
+  sub.className = 'text-label-sm font-label-sm text-on-surface-variant mb-md';
+  sub.textContent = t('muscle_distribution_sub');
+  viewContainer.appendChild(sub);
+
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md flex flex-col gap-4';
+  muscles.forEach((m) => {
+    const pct = Math.max(6, Math.round((m.sets / maxSets) * 100));
+    const row = document.createElement('div');
+    row.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-label-md font-label-md font-bold">${esc(m.muscle)}</span>
+        <span class="text-label-sm font-label-sm text-on-surface-variant">${t('sets_count', { n: m.sets })}</span>
+      </div>
+      <div class="h-2 rounded-full bg-surface-container-high overflow-hidden">
+        <div class="h-full rounded-full bg-primary" style="width:${pct}%"></div>
+      </div>
+    `;
+    card.appendChild(row);
+  });
+  viewContainer.appendChild(card);
+}
+
+// Календарь тренировок текущего месяца: подсветка дней + подходы за выбранный день
+function renderWorkoutCalendar(days) {
+  const daySet = new Set(days);
+  if (!state.gymCalMonth) state.gymCalMonth = localDay().slice(0, 7); // YYYY-MM
+
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-md';
+  head.textContent = t('workout_calendar');
+  viewContainer.appendChild(head);
+
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  viewContainer.appendChild(card);
+  const dayDetail = document.createElement('div');
+  dayDetail.className = 'mt-md';
+
+  function shiftMonth(delta) {
+    let [y, m] = state.gymCalMonth.split('-').map(Number);
+    m += delta;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    state.gymCalMonth = `${y}-${String(m).padStart(2, '0')}`;
+    draw();
+  }
+
+  async function showDay(ds) {
+    dayDetail.textContent = '';
+    let data;
+    try { data = await api.getWorkoutDay(ds); } catch (e) { return; }
+    const sets = (data && data.sets) || [];
+    const p = ds.split('-');
+    const dateFormatted = `${p[2]}.${p[1]}.${p[0]}`;
+    const title = document.createElement('p');
+    title.className = 'text-label-md font-label-md font-bold mb-2';
+    title.textContent = t('sets_on_day', { date: dateFormatted });
+    dayDetail.appendChild(title);
+    if (!sets.length) {
+      const e = document.createElement('p');
+      e.className = 'text-label-sm font-label-sm text-on-surface-variant';
+      e.textContent = t('no_sets_on_day');
+      dayDetail.appendChild(e);
+      return;
+    }
+    const kg = state.lang === 'ru' ? 'кг' : 'kg';
+    sets.forEach((s) => {
+      const r = document.createElement('div');
+      r.className = 'gym-set-row';
+      r.innerHTML = `
+        <span class="text-label-md font-label-md font-bold truncate min-w-0">${esc(translateExercise(s.exercise))}</span>
+        <span class="text-label-sm font-label-sm text-on-surface-variant shrink-0">${s.weight} ${kg} × ${s.reps}</span>
+      `;
+      dayDetail.appendChild(r);
+    });
+  }
+
+  function draw() {
+    card.textContent = '';
+    const [y, m] = state.gymCalMonth.split('-').map(Number);
+    const nav = document.createElement('div');
+    nav.className = 'flex items-center justify-between mb-md';
+    const title = new Date(y, m - 1, 1).toLocaleDateString(state.lang === 'ru' ? 'ru-RU' : 'en-US', { month: 'long', year: 'numeric' });
+    nav.innerHTML = `
+      <button type="button" class="icon-btn" data-nav="-1"><span class="material-symbols-outlined">chevron_left</span></button>
+      <span class="text-label-md font-label-md font-bold capitalize">${esc(title)}</span>
+      <button type="button" class="icon-btn" data-nav="1"><span class="material-symbols-outlined">chevron_right</span></button>
+    `;
+    nav.querySelector('[data-nav="-1"]').addEventListener('click', () => shiftMonth(-1));
+    nav.querySelector('[data-nav="1"]').addEventListener('click', () => shiftMonth(1));
+    card.appendChild(nav);
+
+    const grid = document.createElement('div');
+    grid.className = 'gym-cal';
+    const dow = state.lang === 'ru' ? ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    dow.forEach((d) => {
+      const h = document.createElement('div');
+      h.className = 'gym-cal__dow';
+      h.textContent = d;
+      grid.appendChild(h);
+    });
+    const first = new Date(y, m - 1, 1);
+    const startOffset = (first.getDay() + 6) % 7; // понедельник — первый
+    for (let i = 0; i < startOffset; i++) grid.appendChild(document.createElement('div'));
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const todayStr = localDay();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const has = daySet.has(ds);
+      const cell = document.createElement(has ? 'button' : 'div');
+      cell.className = 'gym-cal__day' + (has ? ' gym-cal__day--active' : '') + (ds === todayStr ? ' gym-cal__day--today' : '');
+      cell.textContent = d;
+      if (has) { cell.type = 'button'; cell.addEventListener('click', () => showDay(ds)); }
+      grid.appendChild(cell);
+    }
+    card.appendChild(grid);
+    card.appendChild(dayDetail);
+  }
+
+  draw();
+  dayDetail.innerHTML = `<p class="text-label-sm font-label-sm text-on-surface-variant text-center">${t('tap_day_hint')}</p>`;
+}
+
+// Прогресс весов: выбор упражнения + SVG-линия максимального рабочего веса по дням
+async function renderWeightProgress() {
+  const head = document.createElement('h3');
+  head.className = 'text-headline-md font-headline-md mb-md';
+  head.textContent = t('weight_progress');
+  viewContainer.appendChild(head);
+
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-[32px] p-md shadow-xl shadow-on-surface/5 mb-md';
+  viewContainer.appendChild(card);
+
+  if (!state.gymExercises || !state.gymExercises.length) {
+    try { const d = await api.getExercises(); state.gymExercises = d.exercises || []; } catch (e) {}
+  }
+  if (!state.gymExercises.length) return;
+
+  const select = document.createElement('select');
+  select.className = 'field-input mb-md';
+  state.gymExercises.forEach((ex) => {
+    const o = document.createElement('option');
+    o.value = String(ex.id);
+    o.textContent = translateExercise(ex.name);
+    select.appendChild(o);
+  });
+  card.appendChild(select);
+  const chartWrap = document.createElement('div');
+  card.appendChild(chartWrap);
+
+  async function drawChart(exId) {
+    chartWrap.textContent = '';
+    let data;
+    try { data = await api.getExerciseProgress(exId); } catch (e) { return; }
+    const points = (data && data.points) || [];
+    if (points.length < 2) {
+      const e = document.createElement('p');
+      e.className = 'text-label-sm font-label-sm text-on-surface-variant text-center py-6';
+      e.textContent = t('no_progress_data');
+      chartWrap.appendChild(e);
+      return;
+    }
+    chartWrap.appendChild(buildLineChart(points));
+  }
+
+  select.addEventListener('change', () => { state.gymStatsExerciseId = Number(select.value); drawChart(select.value); });
+  const initId = state.gymStatsExerciseId && state.gymExercises.some((e) => e.id === state.gymStatsExerciseId)
+    ? state.gymStatsExerciseId : state.gymExercises[0].id;
+  select.value = String(initId);
+  state.gymStatsExerciseId = Number(initId);
+  drawChart(initId);
+}
+
+// Простая SVG-линия по точкам [{day, maxWeight}] (CSS-переменные через inline style)
+function buildLineChart(points) {
+  const W = 320, H = 140, padL = 8, padR = 8, padT = 14, padB = 22;
+  const vals = points.map((p) => Number(p.maxWeight) || 0);
+  const max = Math.max.apply(null, vals);
+  const min = Math.min.apply(null, vals);
+  const range = (max - min) || 1;
+  const n = points.length;
+  const xAt = (i) => padL + (i / (n - 1)) * (W - padL - padR);
+  const yAt = (v) => padT + (1 - (v - min) / range) * (H - padT - padB);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('class', 'w-full h-auto');
+
+  const poly = document.createElementNS(ns, 'polyline');
+  poly.setAttribute('points', points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(vals[i]).toFixed(1)}`).join(' '));
+  poly.setAttribute('style', 'fill:none;stroke:rgb(var(--primary));stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round');
+  svg.appendChild(poly);
+
+  points.forEach((p, i) => {
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', xAt(i).toFixed(1));
+    c.setAttribute('cy', yAt(vals[i]).toFixed(1));
+    c.setAttribute('r', '2.6');
+    c.setAttribute('style', 'fill:rgb(var(--primary))');
+    svg.appendChild(c);
+  });
+  // подписи min/max веса
+  const kg = state.lang === 'ru' ? 'кг' : 'kg';
+  const lblMax = document.createElementNS(ns, 'text');
+  lblMax.setAttribute('x', '2'); lblMax.setAttribute('y', (padT - 4).toFixed(1));
+  lblMax.setAttribute('style', 'fill:rgb(var(--on-surface-variant));font-size:10px');
+  lblMax.textContent = `${Math.round(max)} ${kg}`;
+  svg.appendChild(lblMax);
+  const lblMin = document.createElementNS(ns, 'text');
+  lblMin.setAttribute('x', '2'); lblMin.setAttribute('y', (H - 6).toFixed(1));
+  lblMin.setAttribute('style', 'fill:rgb(var(--on-surface-variant));font-size:10px');
+  lblMin.textContent = `${Math.round(min)} ${kg}`;
+  svg.appendChild(lblMin);
+  return svg;
 }
 
 // ==========================================
@@ -1849,6 +2626,31 @@ function setActivityType(type) {
 typeSeg.addEventListener('click', (e) => {
   const btn = e.target.closest('.seg-btn');
   if (btn) setActivityType(btn.getAttribute('data-type'));
+});
+
+// Учёт калорий: чекбокс показывает/скрывает поля направления и величины
+const actTrackCaloriesInput = document.getElementById('actTrackCaloriesInput');
+const caloriesFields = document.getElementById('caloriesFields');
+const calorieKindSeg = document.getElementById('calorieKindSeg');
+const actCalorieKindInput = document.getElementById('actCalorieKindInput');
+const actCaloriesInput = document.getElementById('actCaloriesInput');
+
+function setTrackCalories(on) {
+  actTrackCaloriesInput.checked = !!on;
+  caloriesFields.style.display = on ? '' : 'none';
+}
+function setCalorieKind(kind) {
+  const k = kind === 'saved' ? 'saved' : 'burned';
+  actCalorieKindInput.value = k;
+  calorieKindSeg.querySelectorAll('.seg-btn').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-kind') === k);
+  });
+}
+
+actTrackCaloriesInput.addEventListener('change', () => setTrackCalories(actTrackCaloriesInput.checked));
+calorieKindSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (btn) setCalorieKind(btn.getAttribute('data-kind'));
 });
 
 const logModal = document.getElementById('logModal');
@@ -1955,6 +2757,9 @@ function openActivityModal(activity = null) {
     state.selectedColor = activity.color || '#0059b5';
     actColorInput.value = state.selectedColor;
     setActivityType(activity.type || 'numeric');
+    setCalorieKind(activity.calorie_kind || 'burned');
+    actCaloriesInput.value = activity.calories_per_unit != null ? activity.calories_per_unit : '';
+    setTrackCalories(!!activity.track_calories);
     deleteActivityBtn.hidden = false;
   } else {
     modalTitle.textContent = t('new_habit');
@@ -1965,6 +2770,9 @@ function openActivityModal(activity = null) {
     state.selectedColor = '#0059b5';
     actColorInput.value = '#0059b5';
     setActivityType('numeric');
+    setCalorieKind('burned');
+    actCaloriesInput.value = '';
+    setTrackCalories(false);
     deleteActivityBtn.hidden = true;
   }
   initColorPicker();
@@ -2124,9 +2932,44 @@ const gymModal = document.getElementById('gymModal');
 const gymExerciseSelect = document.getElementById('gymExerciseSelect');
 const gymWeightInput = document.getElementById('gymWeightInput');
 const gymRepsInput = document.getElementById('gymRepsInput');
+const gymCaloriesInput = document.getElementById('gymCaloriesInput');
+
+// Авто-оценка калорий подхода по весу тела (MET-формула, ACSM): kcal = MET × вес × время.
+// Время подхода оценивается от числа повторений (≈4с на повтор, минимум 30с); MET=6 (силовая).
+function estimateSetCalories(reps) {
+  const w = state.user && state.user.weight;
+  if (!(w > 0) || !(reps > 0)) return null;
+  const minutes = Math.max(0.5, (reps * 4) / 60);
+  return Math.round(6 * w * (minutes / 60));
+}
+// Живая подсказка: оценка показывается в placeholder поля калорий, пока пользователь не ввёл своё.
+function refreshCaloriePlaceholder() {
+  const est = estimateSetCalories(parseInt(gymRepsInput.value));
+  if (est != null) gymCaloriesInput.placeholder = String(est);
+}
+if (gymRepsInput) gymRepsInput.addEventListener('input', refreshCaloriePlaceholder);
 const gymSetList = document.getElementById('gymSetList');
 const gymSetCount = document.getElementById('gymSetCount');
+const gymManageBtn = document.getElementById('gymManageBtn');
+const gymExerciseManager = document.getElementById('gymExerciseManager');
+const exNameInput = document.getElementById('exNameInput');
+const exDefWeight = document.getElementById('exDefWeight');
+const exDefReps = document.getElementById('exDefReps');
+const exDefSets = document.getElementById('exDefSets');
+const exDefCalories = document.getElementById('exDefCalories');
+const exSaveBtn = document.getElementById('exSaveBtn');
+const exCancelBtn = document.getElementById('exCancelBtn');
+const exMuscleSelect = document.getElementById('exMuscleSelect');
+const gymSetsInput = document.getElementById('gymSetsInput');
+const gymAddSetLabel = document.getElementById('gymAddSetLabel');
+const exList = document.getElementById('exList');
+const exNewBtn = document.getElementById('exNewBtn');
+const exFormTitle = document.getElementById('exFormTitle');
 
+// id упражнения, открытого в менеджере на редактирование (null = режим создания нового)
+let editingExerciseId = null;
+
+// Базовые имена (для перевода засеянного справочника на русский)
 const GYM_EXERCISES = [
   'Bench Press',
   'Barbell Squat',
@@ -2138,24 +2981,168 @@ const GYM_EXERCISES = [
   'Leg Press'
 ];
 
-function openGymModal() {
+// Локализуем плейсхолдеры менеджера упражнений
+function syncGymPlaceholders() {
+  if (exNameInput) exNameInput.placeholder = t('exercise_name_ph');
+  if (exDefWeight) exDefWeight.placeholder = t('def_weight_ph');
+  if (exDefReps) exDefReps.placeholder = t('def_reps_ph');
+  if (exDefSets) exDefSets.placeholder = t('def_sets_ph');
+  if (exDefCalories) exDefCalories.placeholder = t('def_calories_ph');
+}
+
+// Наполняем <select> из справочника (value = id упражнения)
+function populateExerciseSelect(selectId) {
+  gymExerciseSelect.textContent = '';
+  state.gymExercises.forEach((ex) => {
+    const opt = document.createElement('option');
+    opt.value = String(ex.id);
+    opt.textContent = translateExercise(ex.name);
+    gymExerciseSelect.appendChild(opt);
+  });
+  if (selectId != null) gymExerciseSelect.value = String(selectId);
+}
+
+// Подставляем дефолтные значения выбранного упражнения (пользователь может переписать)
+function applyExerciseDefaults() {
+  const ex = state.gymExercises.find((e) => String(e.id) === gymExerciseSelect.value);
+  if (!ex) return;
+  gymWeightInput.value = ex.default_weight != null ? ex.default_weight : '';
+  gymRepsInput.value = ex.default_reps != null ? ex.default_reps : '';
+  gymCaloriesInput.value = ex.default_calories != null ? ex.default_calories : '';
+  gymSetsInput.value = ex.default_sets != null ? ex.default_sets : '';
+  updateAddSetLabel();
+}
+
+// Сколько подходов добавит кнопка (1..20)
+function getSetsCount() {
+  let n = parseInt(gymSetsInput.value);
+  if (!isFinite(n) || n < 1) n = 1;
+  return Math.min(n, 20);
+}
+
+// Текст кнопки добавления — «Добавить подход» или «Добавить подходов: N»
+function updateAddSetLabel() {
+  if (!gymAddSetLabel) return;
+  const n = getSetsCount();
+  gymAddSetLabel.textContent = n > 1 ? t('add_n_sets', { n }) : t('add_set');
+}
+
+async function loadGymExercises(selectId) {
+  try {
+    const data = await api.getExercises();
+    state.gymExercises = data.exercises || [];
+  } catch (err) {
+    state.gymExercises = [];
+    showToast(t('failed_load_exercises'), 'error');
+  }
+  populateExerciseSelect(selectId);
+  applyExerciseDefaults();
+}
+
+async function openGymModal() {
   state.gymSets = [];
   gymWeightInput.value = '';
   gymRepsInput.value = '';
-  
-  // Populate exercise select dynamically
-  gymExerciseSelect.textContent = '';
-  GYM_EXERCISES.forEach((ex) => {
-    const opt = document.createElement('option');
-    opt.value = ex;
-    opt.textContent = translateExercise(ex);
-    gymExerciseSelect.appendChild(opt);
-  });
-
+  gymCaloriesInput.value = '';
+  gymSetsInput.value = '';
+  hideExerciseManager();
+  syncGymPlaceholders();
+  updateAddSetLabel();
   renderGymSets();
   gymModal.classList.remove('hidden');
+  await loadGymExercises();
 }
 function closeGymModal() { gymModal.classList.add('hidden'); }
+
+// ---- менеджер упражнений (редактирование дефолтов существующих + добавление новых) ----
+
+// Заполняем форму менеджера значениями упражнения (или очищаем для нового)
+function fillExerciseForm(ex) {
+  if (ex) {
+    editingExerciseId = ex.id;
+    exNameInput.value = ex.name || '';
+    exDefWeight.value = ex.default_weight != null ? ex.default_weight : '';
+    exDefReps.value = ex.default_reps != null ? ex.default_reps : '';
+    exDefSets.value = ex.default_sets != null ? ex.default_sets : '';
+    exDefCalories.value = ex.default_calories != null ? ex.default_calories : '';
+    exMuscleSelect.value = ex.target_muscle || 'Разное';
+    exFormTitle.textContent = t('edit_exercise');
+  } else {
+    editingExerciseId = null;
+    exNameInput.value = '';
+    exDefWeight.value = '';
+    exDefReps.value = '';
+    exDefSets.value = '';
+    exDefCalories.value = '';
+    exMuscleSelect.value = 'Разное';
+    exFormTitle.textContent = t('add_exercise');
+  }
+}
+
+// Список упражнений в менеджере — клик загружает в форму на редактирование
+function renderExerciseList() {
+  exList.textContent = '';
+  const kg = state.lang === 'ru' ? 'кг' : 'kg';
+  state.gymExercises.forEach((ex) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'flex items-center justify-between gap-2 w-full text-left px-3 py-2 rounded-xl hover:bg-primary/5 active:scale-[0.99] transition-all'
+      + (String(ex.id) === String(editingExerciseId) ? ' bg-primary/10' : '');
+    const sets = ex.default_sets != null ? ex.default_sets : '–';
+    const w = ex.default_weight != null ? ex.default_weight : '–';
+    const reps = ex.default_reps != null ? ex.default_reps : '–';
+    const muscle = ex.target_muscle && ex.target_muscle !== 'Разное' ? ex.target_muscle : '';
+    row.innerHTML = `
+      <span class="flex items-center gap-2 min-w-0">
+        <span class="text-label-md font-label-md font-bold truncate min-w-0">${esc(translateExercise(ex.name))}</span>
+        ${muscle ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">${esc(muscle)}</span>` : ''}
+      </span>
+      <span class="text-label-sm font-label-sm text-on-surface-variant shrink-0">${sets}×${w}${kg} · ${reps}</span>
+    `;
+    row.addEventListener('click', () => { fillExerciseForm(ex); renderExerciseList(); exNameInput.focus(); });
+    exList.appendChild(row);
+  });
+}
+
+// Открываем менеджер: по умолчанию редактируем текущее выбранное упражнение
+function showExerciseManager() {
+  syncGymPlaceholders();
+  const current = state.gymExercises.find((e) => String(e.id) === gymExerciseSelect.value);
+  fillExerciseForm(current || null);
+  renderExerciseList();
+  gymExerciseManager.classList.remove('hidden');
+  exNameInput.focus();
+}
+function hideExerciseManager() { gymExerciseManager.classList.add('hidden'); }
+function toggleExerciseManager() {
+  if (gymExerciseManager.classList.contains('hidden')) showExerciseManager();
+  else hideExerciseManager();
+}
+
+// Сохранение: создаём новое или обновляем редактируемое упражнение
+async function saveExercise() {
+  const name = exNameInput.value.trim();
+  if (!name) { showToast(t('exercise_name_required'), 'error'); return; }
+  const payload = {
+    name,
+    default_weight: exDefWeight.value === '' ? null : Number(exDefWeight.value),
+    default_reps: exDefReps.value === '' ? null : parseInt(exDefReps.value),
+    default_sets: exDefSets.value === '' ? null : parseInt(exDefSets.value),
+    default_calories: exDefCalories.value === '' ? null : Number(exDefCalories.value),
+    target_muscle: exMuscleSelect.value,
+  };
+  try {
+    const res = editingExerciseId
+      ? await api.updateExercise(editingExerciseId, payload)
+      : await api.createExercise(payload);
+    hideExerciseManager();
+    showToast(t('exercise_saved'));
+    const savedId = res && res.exercise ? res.exercise.id : editingExerciseId;
+    await loadGymExercises(savedId); // перезагрузим справочник и выберем сохранённое
+  } catch (err) {
+    showToast(t('failed_save_exercise'), 'error');
+  }
+}
 
 function renderGymSets() {
   gymSetList.textContent = '';
@@ -2167,15 +3154,18 @@ function renderGymSets() {
     gymSetList.appendChild(empty);
     return;
   }
+  const kg = state.lang === 'ru' ? 'кг' : 'kg';
+  const kcal = state.lang === 'ru' ? 'ккал' : 'kcal';
   state.gymSets.forEach((s, i) => {
     const row = document.createElement('div');
     row.className = 'gym-set-row';
+    const calStr = (s.calories != null && s.calories > 0) ? ` · ${Number(s.calories)} ${kcal}` : '';
     row.innerHTML = `
       <div class="flex items-center gap-3 min-w-0">
         <span class="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-label-sm font-bold shrink-0">${i + 1}</span>
         <div class="min-w-0">
           <p class="text-label-md font-label-md font-bold truncate">${esc(translateExercise(s.exercise))}</p>
-          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} ${state.lang === 'ru' ? 'кг' : 'kg'} × ${s.reps}</p>
+          <p class="text-label-sm font-label-sm text-on-surface-variant">${s.weight} ${kg} × ${s.reps}${calStr}</p>
         </div>
       </div>
     `;
@@ -2190,17 +3180,23 @@ function renderGymSets() {
 }
 
 function addGymSet() {
-  const exercise = gymExerciseSelect.value;
+  const ex = state.gymExercises.find((e) => String(e.id) === gymExerciseSelect.value);
+  const exerciseId = ex ? ex.id : null;
+  const exerciseName = ex ? ex.name : gymExerciseSelect.value;
   const weight = parseFloat(gymWeightInput.value);
   const reps = parseInt(gymRepsInput.value);
   if (!isFinite(weight) || weight < 0 || !isFinite(reps) || reps <= 0) {
     showToast(t('enter_weight_reps'), 'error');
     return;
   }
-  state.gymSets.push({ exercise, weight: Number(weight), reps });
-  gymRepsInput.value = '';
+  const calRaw = parseFloat(gymCaloriesInput.value);
+  // Ручной ввод имеет приоритет; иначе авто-оценка по весу тела (MET). Без веса — null, как раньше.
+  const calories = (isFinite(calRaw) && calRaw >= 0) ? Number(calRaw) : estimateSetCalories(reps);
+  const nSets = getSetsCount();
+  for (let k = 0; k < nSets; k++) {
+    state.gymSets.push({ exercise: exerciseName, exercise_id: exerciseId, weight: Number(weight), reps, calories });
+  }
   renderGymSets();
-  gymRepsInput.focus();
 }
 
 async function finishGym() {
@@ -2310,6 +3306,15 @@ on('gymModeBtnSide', 'click', openGymModal);
 on('closeGymBtn', 'click', closeGymModal);
 on('gymAddSetBtn', 'click', addGymSet);
 on('gymFinishBtn', 'click', finishGym);
+// Автозаполнение полей дефолтными значениями выбранного упражнения
+on('gymExerciseSelect', 'change', applyExerciseDefaults);
+// Кол-во подходов влияет на текст кнопки добавления
+on('gymSetsInput', 'input', updateAddSetLabel);
+// Менеджер упражнений
+on('gymManageBtn', 'click', toggleExerciseManager);
+on('exSaveBtn', 'click', saveExercise);
+on('exCancelBtn', 'click', hideExerciseManager);
+on('exNewBtn', 'click', () => { fillExerciseForm(null); renderExerciseList(); exNameInput.focus(); });
 
 // Колокольчик уведомлений (мобильная шапка + сайдбар)
 on('notifBtn', 'click', openNotifModal);
@@ -2337,6 +3342,31 @@ document.getElementById('closeModalBtn').addEventListener('click', closeActivity
 document.getElementById('cancelModalBtn').addEventListener('click', closeActivityModal);
 document.getElementById('closeLogModalBtn').addEventListener('click', closeLogModal);
 document.getElementById('cancelLogModalBtn').addEventListener('click', closeLogModal);
+
+// Закрытие модалок при клике на оверлей (фон)
+document.getElementById('activityModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeActivityModal();
+});
+document.getElementById('logModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeLogModal();
+});
+document.getElementById('notifModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeNotifModal();
+});
+document.getElementById('gymModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeGymModal();
+});
+
+
+// Закрытие активного модального окна по клавише Escape
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!activityModal.classList.contains('hidden')) closeActivityModal();
+    if (!logModal.classList.contains('hidden')) closeLogModal();
+    if (!notifModal.classList.contains('hidden')) closeNotifModal();
+    if (!gymModal.classList.contains('hidden')) closeGymModal();
+  }
+});
 
 // Сохранение лога
 logForm.addEventListener('submit', async (e) => {
@@ -2367,6 +3397,7 @@ activityForm.addEventListener('submit', async (e) => {
   
   const type = actTypeInput.value === 'simple' ? 'simple' : 'numeric';
   const numOrNull = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : null; };
+  const trackCalories = actTrackCaloriesInput.checked;
   const data = {
     name,
     color: actColorInput.value,
@@ -2376,6 +3407,9 @@ activityForm.addEventListener('submit', async (e) => {
     quick_add_1: type === 'simple' ? null : numOrNull(actQa1Input.value),
     quick_add_2: type === 'simple' ? null : numOrNull(actQa2Input.value),
     quick_add_3: type === 'simple' ? null : numOrNull(actQa3Input.value),
+    track_calories: trackCalories ? 1 : 0,
+    calorie_kind: trackCalories ? (actCalorieKindInput.value === 'saved' ? 'saved' : 'burned') : null,
+    calories_per_unit: trackCalories ? numOrNull(actCaloriesInput.value) : null,
   };
   try {
     if (id) {
