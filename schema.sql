@@ -66,3 +66,24 @@ CREATE INDEX IF NOT EXISTS idx_act_user       ON activities(user_id);
 CREATE INDEX IF NOT EXISTS idx_wsets_user_day ON workout_sets(user_id, day);
 CREATE INDEX IF NOT EXISTS idx_wsets_user_ex  ON workout_sets(user_id, exercise_id);
 CREATE INDEX IF NOT EXISTS idx_ex_user        ON exercises(user_id);
+
+-- Web Push subscriptions (one per browser/device per user)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL,
+  endpoint   TEXT NOT NULL,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id, endpoint)
+);
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
+-- Personal API tokens (machine-to-machine: Tasker, Health Connect, etc.)
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL UNIQUE,
+  token      TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_api_tokens_token ON api_tokens(token);

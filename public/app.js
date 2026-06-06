@@ -39,7 +39,18 @@ const COLOR_PRESETS = [
 
 // Emojis for picker
 const EMOJI_PRESETS = [
-  '💪', '🏃', '🚴', '🧘', '📖', '📚', '💻', '🎨', '🎵', '💧', '🍏', '🚭', '⏰', '✨', '🏋️', '🍎', '🥦', '🚶', '🏊', '🧗', '🥊', '⚽', '🏀', '🎮', '✍️', '🧠', '💤', '💵', '🧼', '🧹', '🌱'
+  // Спорт и движение
+  '💪', '🏃', '🚴', '🧘', '🏋️', '🏊', '🚶', '🧗', '🥊', '⚽', '🏀', '🎾', '🏐', '🏇', '🤸', '🎿', '🛹', '🥋',
+  // Еда и питьё
+  '🍎', '🍏', '🥦', '🥗', '🍵', '☕', '🚰', '💧', '🧃', '🍋', '🥤', '🫖', '🚭',
+  // Учёба и работа
+  '📖', '📚', '💻', '✍️', '🧠', '📝', '🎓', '🔬', '📐', '🗂️', '📊', '🖊️',
+  // Здоровье и режим
+  '💤', '⏰', '🧼', '🪥', '🛁', '❤️', '🩺', '💊', '🧘',
+  // Деньги и продуктивность
+  '💵', '💰', '📈', '🎯', '✅', '🔥',
+  // Дом и хобби
+  '🧹', '🌱', '🌿', '🎨', '🎵', '🎮', '🎸', '🎬', '📸', '✨', '🕯️', '🌞', '🌙',
 ];
 
 const TRANSLATIONS = {
@@ -216,6 +227,29 @@ const TRANSLATIONS = {
 
     // Motivation
     lets_go: "Let's go 🚀",
+
+    // Notifications
+    notifications: 'Notifications',
+    notif_sub: 'Almaty: 8:00, 13:00, 20:00 — if no habits logged',
+    notif_enable: 'Enable',
+    notif_disable: 'Disable',
+    notif_enabled: 'Notifications enabled!',
+    notif_disabled: 'Notifications disabled',
+    notif_not_supported: 'Not supported',
+    notif_denied: 'Blocked in browser settings',
+    notif_error: 'Failed to enable notifications',
+
+    // Health Sync
+    health_sync: 'Health Sync',
+    health_sync_sub: 'Tasker + Health Connect (Android)',
+    generate_token: 'Generate Token',
+    regenerate_token: 'Regenerate',
+    regenerate_confirm: 'Generate a new token? The old one will stop working.',
+    token_copied: 'Token copied!',
+    token_copy_error: 'Could not copy — copy manually',
+    token_regenerated: 'New token generated',
+    token_error: 'Failed to generate token',
+    tasker_instruction: '<b>Setup:</b> Install Tasker + <i>Health Connect for Tasker</i> plugin. Create a daily profile that reads steps, then add HTTP POST action:<br><b>URL:</b> <code>{url}/api/ingest</code><br><b>Header:</b> <code>Authorization: Bearer &lt;token&gt;</code><br><b>Body:</b> <code>{"steps": %hcsteps, "date": "%DATE"}</code>',
   },
   ru: {
     // Nav
@@ -390,6 +424,29 @@ const TRANSLATIONS = {
 
     // Motivation
     lets_go: 'Погнали 🚀',
+
+    // Notifications
+    notifications: 'Уведомления',
+    notif_sub: 'Алматы: 8:00, 13:00, 20:00 — если нет записей',
+    notif_enable: 'Включить',
+    notif_disable: 'Отключить',
+    notif_enabled: 'Уведомления включены!',
+    notif_disabled: 'Уведомления отключены',
+    notif_not_supported: 'Не поддерживается',
+    notif_denied: 'Заблокированы в настройках браузера',
+    notif_error: 'Не удалось включить уведомления',
+
+    // Health Sync
+    health_sync: 'Синхронизация здоровья',
+    health_sync_sub: 'Tasker + Health Connect (Android)',
+    generate_token: 'Создать токен',
+    regenerate_token: 'Пересоздать',
+    regenerate_confirm: 'Создать новый токен? Старый перестанет работать.',
+    token_copied: 'Токен скопирован!',
+    token_copy_error: 'Не удалось скопировать — скопируйте вручную',
+    token_regenerated: 'Новый токен создан',
+    token_error: 'Не удалось создать токен',
+    tasker_instruction: '<b>Настройка:</b> Установите Tasker + плагин <i>Health Connect for Tasker</i>. Создайте ежедневный профиль для чтения шагов, затем добавьте HTTP POST:<br><b>URL:</b> <code>{url}/api/ingest</code><br><b>Заголовок:</b> <code>Authorization: Bearer &lt;токен&gt;</code><br><b>Тело:</b> <code>{"steps": %hcsteps, "date": "%DATE"}</code>',
   }
 };
 
@@ -529,6 +586,10 @@ const api = {
   getLogs: (activityId) => fetchJson(`/api/activities/${activityId}/logs`),
   deleteLog: (id) => fetchJson(`/api/logs/${id}`, { method: 'DELETE' }),
   updateLog: (id, amount) => fetchJson(`/api/logs/${id}`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
+  savePushSub: (sub) => fetchJson('/api/push/subscribe', { method: 'POST', body: JSON.stringify(sub) }),
+  deletePushSub: (endpoint) => fetchJson('/api/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+  getToken: () => fetchJson('/api/tokens'),
+  generateToken: () => fetchJson('/api/tokens', { method: 'POST' }),
 };
 
 // ==========================================
@@ -1163,9 +1224,197 @@ function languageToggleRow() {
   return row;
 }
 
+// ---------- push notification helpers ----------
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+async function notificationRow() {
+  const row = document.createElement('div');
+  row.className = 'glass-panel rounded-2xl p-4 flex items-center justify-between shadow-sm mb-md';
+
+  const label = document.createElement('div');
+  label.innerHTML = `
+    <p class="text-label-md font-label-md font-bold">${t('notifications')}</p>
+    <p class="text-label-sm font-label-sm text-on-surface-variant">${t('notif_sub')}</p>
+  `;
+  row.appendChild(label);
+
+  const ctrl = document.createElement('div');
+  row.appendChild(ctrl);
+
+  const unsupported = !('serviceWorker' in navigator) || !('PushManager' in window);
+  if (unsupported) {
+    ctrl.innerHTML = `<span class="text-label-sm font-label-sm text-on-surface-variant/60">${t('notif_not_supported')}</span>`;
+    return row;
+  }
+
+  if (Notification.permission === 'denied') {
+    ctrl.innerHTML = `<span class="text-label-sm font-label-sm" style="color:rgb(var(--error))">${t('notif_denied')}</span>`;
+    return row;
+  }
+
+  const reg = await navigator.serviceWorker.ready.catch(() => null);
+  if (!reg) {
+    ctrl.innerHTML = `<span class="text-label-sm font-label-sm text-on-surface-variant/60">${t('notif_not_supported')}</span>`;
+    return row;
+  }
+
+  const currentSub = await reg.pushManager.getSubscription().catch(() => null);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+
+  if (currentSub) {
+    btn.className = 'btn-ghost px-4 py-2 shrink-0';
+    btn.style.color = 'rgb(var(--error))';
+    btn.textContent = t('notif_disable');
+    btn.addEventListener('click', async () => {
+      await currentSub.unsubscribe();
+      await api.deletePushSub(currentSub.endpoint).catch(() => {});
+      showToast(t('notif_disabled'));
+      renderCurrentTab();
+    });
+  } else {
+    btn.className = 'btn-primary px-4 py-2 shrink-0';
+    btn.textContent = t('notif_enable');
+    btn.addEventListener('click', async () => {
+      try {
+        const cfg = await api.getConfig();
+        if (!cfg.vapidPublicKey) { showToast(t('notif_not_supported'), 'error'); return; }
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') { showToast(t('notif_denied'), 'error'); renderCurrentTab(); return; }
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(cfg.vapidPublicKey),
+        });
+        const { endpoint, keys } = sub.toJSON();
+        await api.savePushSub({ endpoint, p256dh: keys.p256dh, auth: keys.auth });
+        showToast(t('notif_enabled'));
+        renderCurrentTab();
+      } catch (e) {
+        showToast(t('notif_error'), 'error');
+      }
+    });
+  }
+
+  ctrl.appendChild(btn);
+  return row;
+}
+
 // ==========================================
 // 8. ПРОФИЛЬ (настройки + управление привычками)
 // ==========================================
+
+async function healthSyncCard() {
+  const card = document.createElement('div');
+  card.className = 'glass-panel rounded-2xl p-4 shadow-sm mb-md';
+
+  card.innerHTML = `
+    <p class="text-label-md font-label-md font-bold">${t('health_sync')}</p>
+    <p class="text-label-sm font-label-sm text-on-surface-variant mb-3">${t('health_sync_sub')}</p>
+  `;
+
+  const tokenSection = document.createElement('div');
+  card.appendChild(tokenSection);
+
+  let currentToken = null;
+  try {
+    const res = await api.getToken();
+    currentToken = res.token || null;
+  } catch (_) {}
+
+  function renderToken(token) {
+    tokenSection.innerHTML = '';
+    currentToken = token;
+
+    if (!token) {
+      const genBtn = document.createElement('button');
+      genBtn.type = 'button';
+      genBtn.className = 'btn-primary px-4 py-2';
+      genBtn.textContent = t('generate_token');
+      genBtn.addEventListener('click', async () => {
+        try {
+          const res = await api.generateToken();
+          renderToken(res.token);
+        } catch (_) {
+          showToast(t('token_error'), 'error');
+        }
+      });
+      tokenSection.appendChild(genBtn);
+      return;
+    }
+
+    // Token row
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 mb-2';
+
+    const inp = document.createElement('input');
+    inp.type = 'password';
+    inp.readOnly = true;
+    inp.value = token;
+    inp.className = 'flex-1 text-xs font-mono bg-surface-container rounded-lg px-3 py-2 text-on-surface min-w-0 border-0 outline-none';
+
+    let shown = false;
+    const eyeBtn = document.createElement('button');
+    eyeBtn.type = 'button';
+    eyeBtn.className = 'btn-ghost p-2 shrink-0';
+    eyeBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">visibility</span>';
+    eyeBtn.addEventListener('click', () => {
+      shown = !shown;
+      inp.type = shown ? 'text' : 'password';
+      eyeBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">${shown ? 'visibility_off' : 'visibility'}</span>`;
+    });
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn-ghost p-2 shrink-0';
+    copyBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">content_copy</span>';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(token);
+        showToast(t('token_copied'));
+      } catch (_) {
+        showToast(t('token_copy_error'), 'error');
+      }
+    });
+
+    row.appendChild(inp);
+    row.appendChild(eyeBtn);
+    row.appendChild(copyBtn);
+    tokenSection.appendChild(row);
+
+    const regenBtn = document.createElement('button');
+    regenBtn.type = 'button';
+    regenBtn.className = 'btn-ghost px-3 py-1 text-label-sm font-label-sm text-on-surface-variant';
+    regenBtn.textContent = t('regenerate_token');
+    regenBtn.addEventListener('click', async () => {
+      if (!confirm(t('regenerate_confirm'))) return;
+      try {
+        const res = await api.generateToken();
+        renderToken(res.token);
+        showToast(t('token_regenerated'));
+      } catch (_) {
+        showToast(t('token_error'), 'error');
+      }
+    });
+    tokenSection.appendChild(regenBtn);
+
+    // Instruction
+    const instr = document.createElement('p');
+    instr.className = 'text-label-sm font-label-sm text-on-surface-variant mt-3 leading-relaxed';
+    instr.innerHTML = t('tasker_instruction').replace('{url}', window.location.origin);
+    tokenSection.appendChild(instr);
+  }
+
+  renderToken(currentToken);
+  return card;
+}
+
 async function renderProfileTab() {
   viewContainer.appendChild(pageHeader(t('profile'), t('settings_habits')));
 
@@ -1192,9 +1441,11 @@ async function renderProfileTab() {
   userCard.appendChild(logoutBtn);
   viewContainer.appendChild(userCard);
 
-  // Переключатель темы и языка
+  // Переключатель темы, языка, уведомлений и синхронизации здоровья
   viewContainer.appendChild(themeToggleRow());
   viewContainer.appendChild(languageToggleRow());
+  viewContainer.appendChild(await notificationRow());
+  viewContainer.appendChild(await healthSyncCard());
 
   // Управление привычками
   const habitsHead = document.createElement('div');
@@ -2162,4 +2413,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showAuthErrorFromUrl();
   loadAuthConfig();
   initApp();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 });

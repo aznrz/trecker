@@ -16,6 +16,10 @@ export default {
     }
     return env.ASSETS.fetch(request);
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(sendScheduledNotifications(env, event.cron));
+  },
 };
 
 // ---------- роутер ----------
@@ -24,11 +28,12 @@ async function handleApi(request, env, url) {
   const path = url.pathname.replace(/^\/api/, "");
   const method = request.method;
 
-  // публичная конфигурация для фронтенда (включены ли Google / Turnstile)
+  // публичная конфигурация для фронтенда (включены ли Google / Turnstile / Push)
   if (path === "/config" && method === "GET") {
     return json({
       turnstileSiteKey: env.TURNSTILE_SITEKEY || null,
       googleEnabled: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+      vapidPublicKey: env.VAPID_PUBLIC_KEY || null,
     });
   }
 
@@ -45,6 +50,9 @@ async function handleApi(request, env, url) {
     return login(request, env);
   }
   if (path === "/logout" && method === "POST") return logout(request);
+
+  // Health ingest: Bearer-токен (без сессии, для Tasker и т.п.)
+  if (path === "/ingest" && method === "POST") return ingestHealth(request, env);
 
   // дальше — только для авторизованных
   const uid = await currentUid(request, env);
@@ -88,6 +96,12 @@ async function handleApi(request, env, url) {
     return saveWorkout(request, env, uid);
   }
   if (path === "/workouts/stats" && method === "GET") return workoutStats(env, uid, url);
+
+  if (path === "/push/subscribe" && method === "POST") return subscribePush(request, env, uid);
+  if (path === "/push/subscribe" && method === "DELETE") return unsubscribePush(request, env, uid);
+
+  if (path === "/tokens" && method === "GET") return getApiToken(env, uid);
+  if (path === "/tokens" && method === "POST") return generateApiToken(env, uid);
 
   return json({ error: "not found" }, 404);
 }
@@ -638,4 +652,258 @@ function b64url(bytes) {
 }
 function fromB64url(str) {
   return fromB64(str.replace(/-/g, "+").replace(/_/g, "/"));
+}
+
+// ---------- push subscriptions ----------
+
+async function subscribePush(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const { endpoint, p256dh, auth } = b;
+  if (!endpoint || !p256dh || !auth) return json({ error: "invalid subscription" }, 400);
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?)
+     ON CONFLICT(user_id, endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth`
+  ).bind(uid, endpoint, p256dh, auth, now).run();
+  return json({ ok: true });
+}
+
+async function unsubscribePush(request, env, uid) {
+  const b = await request.json().catch(() => ({}));
+  const { endpoint } = b;
+  if (!endpoint) return json({ error: "invalid" }, 400);
+  await env.DB.prepare(
+    "DELETE FROM push_subscriptions WHERE user_id=? AND endpoint=?"
+  ).bind(uid, endpoint).run();
+  return json({ ok: true });
+}
+
+// ---------- scheduled: cron → push notifications ----------
+
+async function sendScheduledNotifications(env, cron) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+
+  // Almaty UTC+5, no DST
+  const now = new Date();
+  const almatyMs = now.getTime() + 5 * 3600 * 1000;
+  const today = new Date(almatyMs).toISOString().slice(0, 10);
+
+  // Determine message by cron slot
+  const MSGS = {
+    "0 3 * * *":  { title: "🌅 Герой, доброе утро!", body: "Начни день — отметь первые привычки!" },
+    "0 8 * * *":  { title: "💪 Герой, время обеда!", body: "Привычки сами себя не отметят 😄" },
+    "0 15 * * *": { title: "🌙 Герой, добрый вечер!", body: "Последний шанс закрыть день на 100%!" },
+  };
+  const msg = MSGS[cron] || { title: "Habit Tracker", body: "Не забудь отметить привычки!" };
+
+  // Find subscriptions for users who have at least one incomplete habit today:
+  //   simple  → not logged at all
+  //   numeric → today_total < daily_goal (only when goal > 0)
+  const { results } = await env.DB.prepare(`
+    SELECT DISTINCT ps.id, ps.endpoint, ps.p256dh, ps.auth
+    FROM push_subscriptions ps
+    WHERE EXISTS (
+      SELECT 1 FROM activities a
+      LEFT JOIN (
+        SELECT activity_id, SUM(amount) AS total
+        FROM logs WHERE day = ?
+        GROUP BY activity_id
+      ) dl ON dl.activity_id = a.id
+      WHERE a.user_id = ps.user_id
+        AND (
+          (a.type = 'simple' AND dl.total IS NULL)
+          OR (a.type != 'simple' AND a.daily_goal > 0
+              AND COALESCE(dl.total, 0) < a.daily_goal)
+        )
+    )
+  `).bind(today).all();
+
+  for (const sub of results) {
+    try {
+      const status = await sendPushNotification(env, sub, msg);
+      if (status === 410 || status === 404) {
+        await env.DB.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(sub.id).run();
+      }
+    } catch (e) {
+      console.error("push failed sub=" + sub.id, e?.message);
+    }
+  }
+}
+
+// ---------- Web Push: VAPID JWT + RFC 8291 encryption ----------
+
+function concatBytes(...arrays) {
+  const total = arrays.reduce((s, a) => s + a.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const a of arrays) { out.set(a, off); off += a.length; }
+  return out;
+}
+
+async function importVapidKey(env) {
+  // VAPID_PUBLIC_KEY: base64url of 65-byte uncompressed P-256 point
+  // VAPID_PRIVATE_KEY: base64url of 32-byte scalar (d)
+  const pub = fromB64url(env.VAPID_PUBLIC_KEY);
+  const jwk = {
+    kty: "EC", crv: "P-256",
+    d: env.VAPID_PRIVATE_KEY,
+    x: b64url(pub.slice(1, 33)),
+    y: b64url(pub.slice(33, 65)),
+  };
+  return crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+}
+
+async function createVapidJWT(env, endpoint) {
+  const origin = new URL(endpoint);
+  const aud = `${origin.protocol}//${origin.host}`;
+  const exp = Math.floor(Date.now() / 1000) + 43200;
+  const sub = env.VAPID_EMAIL ? `mailto:${env.VAPID_EMAIL}` : "mailto:admin@example.com";
+
+  const h = b64url(enc.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const p = b64url(enc.encode(JSON.stringify({ aud, exp, sub })));
+  const sigInput = `${h}.${p}`;
+
+  const key = await importVapidKey(env);
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, enc.encode(sigInput));
+  return `${sigInput}.${b64url(new Uint8Array(sig))}`;
+}
+
+async function hmacSHA256(keyBytes, data) {
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, data));
+}
+
+// RFC 8291: encrypt push payload with AES-128-GCM
+async function encryptWebPush(p256dhBytes, authBytes, plaintext) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // Ephemeral server key pair (ECDH)
+  const asKP = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", asKP.publicKey));
+
+  // Import UA public key and derive ECDH shared secret
+  const uaPub = await crypto.subtle.importKey("raw", p256dhBytes, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const ecdhSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaPub }, asKP.privateKey, 256));
+
+  // IKM derivation (RFC 8291 §3.3)
+  const prkAuth = await hmacSHA256(authBytes, ecdhSecret);
+  const authInfo = concatBytes(enc.encode("WebPush: info\x00"), p256dhBytes, asPubRaw, new Uint8Array([1]));
+  const ikm = await hmacSHA256(prkAuth, authInfo);
+
+  // PRK
+  const prk = await hmacSHA256(salt, ikm);
+
+  // CEK (16 bytes) and nonce (12 bytes) via HKDF-Expand T(1)
+  const cek = (await hmacSHA256(prk, concatBytes(enc.encode("Content-Encoding: aes128gcm\x00"), new Uint8Array([1])))).slice(0, 16);
+  const nonce = (await hmacSHA256(prk, concatBytes(enc.encode("Content-Encoding: nonce\x00"), new Uint8Array([1])))).slice(0, 12);
+
+  // Encrypt with AES-128-GCM; append \x02 padding delimiter
+  const aesKey = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: nonce },
+    aesKey,
+    concatBytes(enc.encode(plaintext), new Uint8Array([2]))
+  ));
+
+  // aes128gcm body: salt(16) | rs(4 BE) | keyid_len(1) | keyid(65) | ciphertext
+  const header = new Uint8Array(21 + asPubRaw.length);
+  header.set(salt, 0);
+  new DataView(header.buffer).setUint32(16, 4096, false);
+  header[20] = asPubRaw.length;
+  header.set(asPubRaw, 21);
+
+  return concatBytes(header, ciphertext);
+}
+
+// ---------- API tokens (для Tasker / Health Connect) ----------
+
+async function getApiToken(env, uid) {
+  const row = await env.DB.prepare("SELECT token FROM api_tokens WHERE user_id=?").bind(uid).first();
+  return json({ token: row ? row.token : null });
+}
+
+async function generateApiToken(env, uid) {
+  const token = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    "INSERT INTO api_tokens (user_id, token, created_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET token=excluded.token, created_at=excluded.created_at"
+  ).bind(uid, token, now).run();
+  return json({ token });
+}
+
+// ---------- Health ingest ----------
+
+async function ingestHealth(request, env) {
+  const auth = (request.headers.get("Authorization") || "").trim();
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : null;
+  if (!token) return json({ error: "unauthorized" }, 401);
+
+  const row = await env.DB.prepare("SELECT user_id FROM api_tokens WHERE token=?").bind(token).first();
+  if (!row) return json({ error: "unauthorized" }, 401);
+  const uid = row.user_id;
+
+  const body = await request.json().catch(() => ({}));
+  const { steps, weight_kg, date } = body;
+  const day = (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date))
+    ? date
+    : new Date().toISOString().split("T")[0];
+
+  const synced = [];
+  const now = new Date().toISOString();
+
+  if (typeof steps === "number" && steps >= 0 && steps < 200000) {
+    const actId = await findOrCreateHealthActivity(env, uid, "steps");
+    await env.DB.prepare("DELETE FROM logs WHERE user_id=? AND activity_id=? AND day=?").bind(uid, actId, day).run();
+    await env.DB.prepare("INSERT INTO logs (user_id, activity_id, amount, day, logged_at) VALUES (?,?,?,?,?)").bind(uid, actId, steps, day, now).run();
+    synced.push("steps");
+  }
+
+  if (typeof weight_kg === "number" && weight_kg > 0 && weight_kg < 500) {
+    const actId = await findOrCreateHealthActivity(env, uid, "weight");
+    await env.DB.prepare("DELETE FROM logs WHERE user_id=? AND activity_id=? AND day=?").bind(uid, actId, day).run();
+    await env.DB.prepare("INSERT INTO logs (user_id, activity_id, amount, day, logged_at) VALUES (?,?,?,?,?)").bind(uid, actId, weight_kg, day, now).run();
+    synced.push("weight");
+  }
+
+  return json({ ok: true, synced });
+}
+
+async function findOrCreateHealthActivity(env, uid, type) {
+  const isSteps = type === "steps";
+  const searchTerms = isSteps ? ["шаг", "step"] : ["вес", "weight", "масс"];
+  const defaultName = isSteps ? "👣 Шаги" : "⚖️ Вес";
+  const defaultUnit = isSteps ? "шаги" : "кг";
+  const defaultGoal = isSteps ? 10000 : 0;
+  const defaultColor = isSteps ? "#006e1c" : "#0059b5";
+
+  const acts = await env.DB.prepare("SELECT id, name FROM activities WHERE user_id=?").bind(uid).all();
+  for (const act of (acts.results || [])) {
+    const n = act.name.toLowerCase();
+    if (searchTerms.some(term => n.includes(term))) return act.id;
+  }
+
+  const now = new Date().toISOString();
+  const res = await env.DB.prepare(
+    "INSERT INTO activities (user_id, name, unit, color, daily_goal, type, sort, created_at) VALUES (?,?,?,?,?,?,?,?)"
+  ).bind(uid, defaultName, defaultUnit, defaultColor, defaultGoal, "numeric", 999, now).run();
+  return res.meta.last_row_id;
+}
+
+async function sendPushNotification(env, sub, payload) {
+  const jwt = await createVapidJWT(env, sub.endpoint);
+  const p256dh = fromB64url(sub.p256dh);
+  const auth = fromB64url(sub.auth);
+  const body = await encryptWebPush(p256dh, auth, JSON.stringify(payload));
+
+  const res = await fetch(sub.endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `vapid t=${jwt},k=${env.VAPID_PUBLIC_KEY}`,
+      "Content-Type": "application/octet-stream",
+      "Content-Encoding": "aes128gcm",
+      TTL: "43200",
+    },
+    body,
+  });
+  return res.status;
 }

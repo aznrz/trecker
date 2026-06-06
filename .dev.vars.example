@@ -1,3 +1,10 @@
 # Скопируй в .dev.vars (он в .gitignore) для локального `wrangler dev`.
 # В продакшене задаётся как Secret в дашборде Cloudflare (Settings → Variables and Secrets).
 SESSION_SECRET=change-me-to-a-long-random-string
+
+# Web Push (VAPID). Сгенерируй ключи командой: node generate-vapid-keys.js
+# VAPID_PUBLIC_KEY — base64url несжатой точки P-256 (65 байт, начинается с 04...)
+# VAPID_PRIVATE_KEY — base64url скаляра d (32 байта)
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_EMAIL=your@email.com
