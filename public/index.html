@@ -9,13 +9,13 @@
   <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
   <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
-  <title>Habit Tracker</title>
+  <title>Antigravity</title>
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icon.svg" />
 
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/style.css" />
 
@@ -51,17 +51,26 @@
           borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
           spacing: { "xs": "4px", "sm": "12px", "base": "8px", "md": "24px", "gutter": "24px", "margin": "32px", "lg": "48px", "xl": "80px" },
           fontFamily: {
-            "headline-md": ["Sora"], "body-md": ["Sora"], "label-md": ["Sora"],
-            "headline-xl": ["Sora"], "headline-lg": ["Sora"], "label-sm": ["Sora"], "body-lg": ["Sora"]
+            "headline-xl": ["Hanken Grotesk", "sans-serif"],
+            "headline-lg": ["Hanken Grotesk", "sans-serif"],
+            "headline-lg-mobile": ["Hanken Grotesk", "sans-serif"],
+            "headline-md": ["Hanken Grotesk", "sans-serif"],
+            "body-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "body-md": ["Plus Jakarta Sans", "sans-serif"],
+            "label-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "label-md": ["Plus Jakarta Sans", "sans-serif"],
+            "label-sm": ["Plus Jakarta Sans", "sans-serif"],
           },
           fontSize: {
-            "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
-            "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
-            "label-md": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.01em", "fontWeight": "500"}],
-            "headline-xl": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
-            "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
-            "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "500"}],
-            "body-lg": ["18px", {"lineHeight": "1.5", "fontWeight": "400"}]
+            "headline-xl": ["44px", {"lineHeight": "52px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+            "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+            "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600"}],
+            "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600"}],
+            "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
           }
         }
       }
@@ -77,7 +86,7 @@
         <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-5">
           <span class="material-symbols-outlined text-4xl text-primary">check_circle</span>
         </div>
-        <h1 class="text-headline-xl font-headline-xl text-on-surface">Habit Tracker</h1>
+        <h1 class="text-headline-xl font-headline-xl text-on-surface">Antigravity</h1>
         <p class="text-body-lg font-body-lg text-on-surface-variant mt-1" data-i18n="auth_subtitle">Track your habits. Perfect your routine.</p>
       </div>
 
@@ -120,8 +129,8 @@
     <aside class="sidebar fixed left-0 top-0 h-screen w-60 bg-surface/80 backdrop-blur-3xl border-r border-outline-variant/30 flex-col gap-3 p-5 z-50">
       <div class="mb-6 px-1 flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <h1 class="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">Habit Tracker</h1>
-          <p class="text-label-sm font-label-sm text-on-surface-variant" data-i18n="settings_habits">Habit tracker</p>
+          <h1 class="text-headline-lg font-headline-lg font-bold text-primary tracking-tight">Antigravity</h1>
+          <p class="text-label-sm font-label-sm text-on-surface-variant">Stay effortless</p>
         </div>
         <button id="notifBtnSide" type="button" class="icon-btn relative shrink-0" title="Today's motivation">
           <span class="material-symbols-outlined text-[22px]">notifications</span>
@@ -180,8 +189,7 @@
       <!-- Верхняя панель (смартфоны): логотип + колокольчик уведомлений -->
       <header class="app-topbar">
         <div class="flex items-center gap-2 min-w-0">
-          <span class="material-symbols-outlined text-primary">check_circle</span>
-          <span class="font-bold text-on-surface truncate">Habit Tracker</span>
+          <span class="font-bold text-primary truncate" style="font-family:'Hanken Grotesk',sans-serif;font-size:20px;letter-spacing:-0.01em;">Antigravity</span>
         </div>
         <button id="notifBtn" type="button" class="icon-btn relative" title="Today's motivation">
           <span class="material-symbols-outlined text-[22px]">notifications</span>

@@ -4,11 +4,11 @@
    Значения — RGB-триплеты, чтобы Tailwind-утилиты с прозрачностью
    (bg-primary/10, text-on-surface/40 и т.д.) продолжали работать. */
 :root {
-  --primary: 0 89 181;
+  --primary: 0 91 191;
   --on-primary: 255 255 255;
-  --primary-container: 0 113 227;
-  --secondary: 0 110 28;
-  --secondary-container: 96 254 108;
+  --primary-container: 26 115 232;
+  --secondary: 0 110 42;
+  --secondary-container: 143 250 155;
   --tertiary: 140 33 192;
   --error: 186 26 26;
   --error-container: 255 218 214;
@@ -62,7 +62,7 @@ html.dark {
 /* ====================== БАЗА ====================== */
 body {
   background-color: rgb(var(--background));
-  font-family: 'Sora', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   color: rgb(var(--on-surface));
   padding-top: env(safe-area-inset-top);
