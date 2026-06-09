@@ -19,6 +19,18 @@
 
 ---
 
+## 📸 Скриншоты
+
+<div align="center">
+
+| Десктоп | Мобильный |
+|:---:|:---:|
+| <img src="design/today-desktop-light.png" alt="Today — десктоп, светлая тема" width="460"> | <img src="design/today-mobile-light.png" alt="Today — мобильный, светлая тема" width="220"> |
+
+</div>
+
+---
+
 ## ✨ Возможности
 
 - **Два типа привычек** — числовые (подтягивания, страницы, км) и простые (отметить / не отметить)
@@ -50,18 +62,21 @@
 
 ```
 .
-├── _worker.js          бэкенд: API, аутентификация, push, cron-хендлер
-├── public/             фронтенд (без сборки)
-│   ├── index.html        оболочка SPA
-│   ├── app.js            весь фронтенд (State → API → Render)
-│   ├── sw.js             Service Worker (приём push-уведомлений)
-│   ├── style.css         стили (Tailwind + CSS-переменные тем)
-│   └── manifest.json     PWA-манифест
-├── schema.sql          схема D1: users, activities, logs, exercises, workout_sets, …
-├── wrangler.jsonc      конфиг Cloudflare Workers (имя, D1, cron)
-├── scripts/            разовые утилиты (generate-vapid-keys.js)
-├── docs/               документация по архитектуре и фичам
-└── tests/              E2E- и a11y-тесты (Playwright + Axe-core)
+├── _worker.js              # бэкенд: API, аутентификация, push, cron
+├── public/                 # фронтенд (без сборки)
+│   ├── index.html          #   оболочка SPA
+│   ├── app.js              #   весь фронтенд (State → API → Render)
+│   ├── sw.js               #   Service Worker (приём push-уведомлений)
+│   ├── style.css           #   стили (Tailwind + CSS-переменные тем)
+│   └── manifest.json       #   PWA-манифест
+├── schema.sql              # схема D1 (users, activities, logs, exercises, …)
+├── wrangler.jsonc          # конфиг Cloudflare Workers (имя, D1, cron)
+├── scripts/                # разовые утилиты
+│   └── generate-vapid-keys.js
+├── docs/                   # документация по архитектуре и фичам
+│   ├── implementation_plan.md
+│   └── gym-analytics.md
+└── tests/                  # E2E- и a11y-тесты (Playwright + Axe-core)
 ```
 
 ---

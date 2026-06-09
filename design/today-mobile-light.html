@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Antigravity | Today — Mobile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: { extend: {
+      colors: {
+        "secondary": "#006e1c", "on-surface-variant": "#414753",
+        "surface": "#fcf8fb", "primary": "#0059b5",
+        "surface-container-high": "#eae7ea", "on-surface": "#1b1b1d",
+        "on-primary": "#ffffff", "outline": "#717785",
+        "outline-variant": "#c1c6d6", "background": "#fcf8fb",
+        "primary-container": "#0071e3", "secondary-container": "#60fe6c",
+        "surface-container": "#f0edef", "tertiary": "#8c21c0",
+      },
+      borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+      fontFamily: { sans: ["Sora", "sans-serif"] },
+    } },
+  }
+</script>
+<style>
+  body { background-color: #F5F5F7; font-family: 'Sora', sans-serif; -webkit-font-smoothing: antialiased; }
+  .glass-panel { background: rgba(255,255,255,0.7); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid rgba(210,210,215,0.5); }
+  .neon-glow { box-shadow: 0 0 15px rgba(96,254,108,0.4); }
+</style>
+</head>
+<body class="text-on-surface">
+<div class="w-[390px] min-h-[844px] mx-auto flex flex-col pb-[88px]">
+
+  <!-- Header -->
+  <header class="px-5 pt-7 pb-4 flex justify-between items-center">
+    <div>
+      <h1 class="text-[28px] font-bold tracking-tight leading-tight">Hi, Hero!</h1>
+      <p class="text-[14px] text-on-surface-variant">Ready to ascend today?</p>
+    </div>
+    <div class="glass-panel px-4 py-2.5 rounded-2xl shadow-sm text-right">
+      <p class="text-[10px] text-outline uppercase tracking-wider">Daily</p>
+      <p class="text-[18px] font-semibold text-primary leading-tight">840 XP</p>
+    </div>
+  </header>
+
+  <!-- Cards -->
+  <main class="px-5 flex flex-col gap-4">
+
+    <!-- Pull-ups -->
+    <div class="glass-panel rounded-[28px] p-5 shadow-xl shadow-on-surface/5 flex flex-col gap-4">
+      <div class="flex justify-between items-start">
+        <div class="flex flex-col gap-1">
+          <span class="text-[20px] font-semibold">💪 Pull-ups</span>
+          <div class="flex items-center gap-1 text-secondary font-semibold">
+            <span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+            <span class="text-[13px]">12 Day Streak</span>
+          </div>
+        </div>
+        <span class="text-[20px] font-semibold text-on-surface-variant/40">12 / 20</span>
+      </div>
+      <div class="w-full h-3.5 bg-surface-container-high rounded-full overflow-hidden relative">
+        <div class="absolute top-0 left-0 h-full bg-secondary-container neon-glow rounded-full" style="width:60%"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2.5">
+        <button class="glass-panel py-2.5 rounded-xl text-[14px] font-medium">+1</button>
+        <button class="glass-panel py-2.5 rounded-xl text-[14px] font-medium">+5</button>
+        <button class="bg-on-surface text-on-primary py-2.5 rounded-xl text-[14px] font-medium">Done</button>
+      </div>
+    </div>
+
+    <!-- Study -->
+    <div class="glass-panel rounded-[28px] p-5 shadow-xl shadow-on-surface/5 flex flex-col gap-4">
+      <div class="flex justify-between items-start">
+        <div class="flex flex-col gap-1">
+          <span class="text-[20px] font-semibold">📖 PL-300 Study</span>
+          <div class="flex items-center gap-1 text-secondary font-semibold">
+            <span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+            <span class="text-[13px]">5 Day Streak</span>
+          </div>
+        </div>
+        <span class="text-[20px] font-semibold text-on-surface-variant/40">45 / 60</span>
+      </div>
+      <div class="w-full h-3.5 bg-surface-container-high rounded-full overflow-hidden relative">
+        <div class="absolute top-0 left-0 h-full bg-primary-container neon-glow rounded-full" style="width:75%"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2.5">
+        <button class="glass-panel py-2.5 rounded-xl text-[14px] font-medium">+10m</button>
+        <button class="glass-panel py-2.5 rounded-xl text-[14px] font-medium">+20m</button>
+        <button class="bg-on-surface text-on-primary py-2.5 rounded-xl text-[14px] font-medium">Finish</button>
+      </div>
+    </div>
+
+    <!-- Weekly Goal -->
+    <div class="glass-panel rounded-[28px] p-5 shadow-xl shadow-on-surface/5 flex items-center gap-5">
+      <div class="w-24 h-24 shrink-0 rounded-full border-[10px] border-surface-container-high flex items-center justify-center relative">
+        <div class="absolute inset-0 rounded-full border-[10px] border-secondary-container border-t-transparent border-r-transparent -rotate-45 neon-glow"></div>
+        <span class="text-[20px] font-bold">85%</span>
+      </div>
+      <div>
+        <h3 class="text-[18px] font-semibold mb-1">Weekly Goal</h3>
+        <p class="text-[13px] text-on-surface-variant">You're 15% ahead of your weekly baseline. Keep it up!</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom nav -->
+  <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-[390px] glass-panel border-t border-outline-variant/40 px-8 py-3 flex justify-between items-center">
+    <a class="flex flex-col items-center gap-0.5 text-primary">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">calendar_today</span>
+      <span class="text-[11px] font-medium">Today</span>
+    </a>
+    <a class="flex flex-col items-center gap-0.5 text-outline">
+      <span class="material-symbols-outlined">bar_chart</span>
+      <span class="text-[11px]">Stats</span>
+    </a>
+    <button class="w-14 h-14 -mt-8 bg-primary text-on-primary rounded-2xl shadow-xl flex items-center justify-center">
+      <span class="material-symbols-outlined text-[28px]">add</span>
+    </button>
+    <a class="flex flex-col items-center gap-0.5 text-outline">
+      <span class="material-symbols-outlined">fitness_center</span>
+      <span class="text-[11px]">Gym</span>
+    </a>
+    <a class="flex flex-col items-center gap-0.5 text-outline">
+      <span class="material-symbols-outlined">person</span>
+      <span class="text-[11px]">Profile</span>
+    </a>
+  </nav>
+
+</div>
+</body></html>
