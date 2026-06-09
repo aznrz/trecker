@@ -92,16 +92,21 @@
       </div>
     </div>
 
-    <!-- Weekly Goal -->
-    <div class="glass-panel rounded-[28px] p-5 shadow-xl shadow-on-surface/5 flex items-center gap-5">
-      <div class="w-24 h-24 shrink-0 rounded-full border-[10px] border-surface-container-high flex items-center justify-center relative">
-        <div class="absolute inset-0 rounded-full border-[10px] border-secondary-container border-t-transparent border-r-transparent -rotate-45 neon-glow"></div>
-        <span class="text-[20px] font-bold">85%</span>
+    <!-- No-Coffee Day (simple) -->
+    <div class="glass-panel rounded-[28px] p-5 shadow-xl shadow-on-surface/5 flex flex-col gap-4">
+      <div class="flex justify-between items-start">
+        <div class="flex flex-col gap-1">
+          <span class="text-[20px] font-semibold">☕ No-Coffee Day</span>
+          <div class="flex items-center gap-1 text-secondary font-semibold">
+            <span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1;">local_fire_department</span>
+            <span class="text-[13px]">7 Day Streak</span>
+          </div>
+        </div>
+        <span class="material-symbols-outlined text-secondary text-[28px]" style="font-variation-settings:'FILL' 1;">check_circle</span>
       </div>
-      <div>
-        <h3 class="text-[18px] font-semibold mb-1">Weekly Goal</h3>
-        <p class="text-[13px] text-on-surface-variant">You're 15% ahead of your weekly baseline. Keep it up!</p>
-      </div>
+      <button class="w-full py-2.5 bg-secondary-container text-on-surface rounded-xl text-[14px] font-medium neon-glow flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">task_alt</span> Completed today
+      </button>
     </div>
 
   </main>
