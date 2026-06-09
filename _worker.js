@@ -305,12 +305,11 @@ async function seedDefaultActivities(env, uid) {
   const now = new Date().toISOString();
   // [name, unit, color, goal, type, qa1, qa2, qa3, sort]
   const defaults = [
-    ["Подтягивания", "повторы", "#0059b5", 50, "numeric", 5, 15, 25, 0],
-    ["Чтение", "страниц", "#006e1c", 20, "numeric", 5, 10, 25, 1],
-    ["Медитация", "", "#8c21c0", 1, "simple", null, null, null, 2],
-    ["☕ День без кофе", "", "#c2410c", 1, "simple", null, null, null, 3],
-    ["🧘 Йога", "", "#0e7490", 1, "simple", null, null, null, 4],
-    ["🏋️ Приседания", "повторы", "#be185d", 50, "numeric", 10, 20, 30, 5],
+    ["💪 Push-ups", "reps", "#0059b5", 50, "numeric", 10, 20, 30, 0],
+    ["🏋️ Squats", "reps", "#be185d", 50, "numeric", 10, 20, 30, 1],
+    ["📖 Reading", "pages", "#006e1c", 20, "numeric", 5, 10, 25, 2],
+    ["🧘 Meditation", "", "#8c21c0", 1, "simple", null, null, null, 3],
+    ["☕ No-Coffee Day", "", "#c2410c", 1, "simple", null, null, null, 4],
   ];
   for (const [name, unit, color, goal, type, qa1, qa2, qa3, sort] of defaults) {
     await env.DB.prepare(

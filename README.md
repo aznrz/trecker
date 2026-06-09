@@ -2,8 +2,8 @@
 
 # 🏆 Habit Tracker
 
-**PWA для отслеживания ежедневных привычек и тренировок**
-Числовые и простые привычки, стрики, календарь, Gym Mode и push-напоминания — на Cloudflare Workers + D1.
+**A PWA for tracking daily habits and workouts**
+Numeric and simple habits, streaks, calendar, Gym Mode and push reminders — on Cloudflare Workers + D1.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
@@ -11,182 +11,182 @@
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8?logo=pwa&logoColor=white)](public/manifest.json)
 [![Tests](https://img.shields.io/badge/tests-Playwright%20%2B%20Axe-2EAD33?logo=playwright&logoColor=white)](tests/)
 
-**🌐 Прод:** [sport.ms-cert.workers.dev](https://sport.ms-cert.workers.dev)
+**🌐 Live:** [sport.ms-cert.workers.dev](https://sport.ms-cert.workers.dev)
 
 </div>
 
-> Деплой вручную через `npm run deploy` — Git-автодеплоя нет.
+> Deployed manually via `npm run deploy` — there is no Git auto-deploy.
 
 ---
 
-## 📸 Скриншоты
+## 📸 Screenshots
 
 <div align="center">
 
-| Десктоп | Мобильный |
+| Desktop | Mobile |
 |:---:|:---:|
-| <img src="design/today-desktop-light.png" alt="Today — десктоп, светлая тема" width="460"> | <img src="design/today-mobile-light.png" alt="Today — мобильный, светлая тема" width="220"> |
+| <img src="design/today-desktop-light.png" alt="Today — desktop, light theme" width="460"> | <img src="design/today-mobile-light.png" alt="Today — mobile, light theme" width="220"> |
 
 </div>
 
 ---
 
-## ✨ Возможности
+## ✨ Features
 
-- **Два типа привычек** — числовые (подтягивания, страницы, км) и простые (отметить / не отметить)
-- **Дневной дашборд** с прогресс-барами и стриками
-- **Быстрый ввод** — кнопки +1, +5, +10 и т.д.
-- **Календарь** выполнения за месяц
-- **Статистика** с графиками за 7 / 30 дней
-- **Gym Mode** — запись тренировок (упражнение, вес, повторы) + аналитика тоннажа и топ-3 упражнений
-- **Темы и языки** — светлая / тёмная, русский и английский
-- **Push-уведомления** в 8:00, 13:00 и 20:00 по Алматы (только если есть невыполненные привычки)
-- **Аутентификация** — email/пароль или Google OAuth
+- **Two habit types** — numeric (push-ups, pages, km) and simple (check / uncheck)
+- **Daily dashboard** with progress bars and streaks
+- **Quick add** — +1, +5, +10 buttons, etc.
+- **Calendar** with monthly completion view
+- **Stats** with 7 / 30-day charts
+- **Gym Mode** — log workouts (exercise, weight, reps) + tonnage analytics and top-3 exercises
+- **Themes & languages** — light / dark, English and Russian
+- **Push notifications** at 8:00, 13:00 and 20:00 Almaty time (only if some habit is still incomplete)
+- **Authentication** — email/password or Google OAuth
 
 ---
 
-## 🧱 Стек
+## 🧱 Stack
 
-| Слой | Технология |
+| Layer | Technology |
 |---|---|
-| Хостинг | Cloudflare Workers |
-| База данных | Cloudflare D1 (SQLite) |
-| Фронтенд | Vanilla JS SPA, Tailwind CSS |
-| Push-уведомления | Web Push API (RFC 8291), VAPID (RFC 8292) |
-| Аутентификация | PBKDF2-SHA256, signed cookie, Google OAuth |
-| Защита | Cloudflare Turnstile, rate limiting |
+| Hosting | Cloudflare Workers |
+| Database | Cloudflare D1 (SQLite) |
+| Frontend | Vanilla JS SPA, Tailwind CSS |
+| Push notifications | Web Push API (RFC 8291), VAPID (RFC 8292) |
+| Authentication | PBKDF2-SHA256, signed cookie, Google OAuth |
+| Protection | Cloudflare Turnstile, rate limiting |
 
 ---
 
-## 📁 Структура проекта
+## 📁 Project structure
 
 ```
 .
-├── _worker.js              # бэкенд: API, аутентификация, push, cron
-├── public/                 # фронтенд (без сборки)
-│   ├── index.html          #   оболочка SPA
-│   ├── app.js              #   весь фронтенд (State → API → Render)
-│   ├── sw.js               #   Service Worker (приём push-уведомлений)
-│   ├── style.css           #   стили (Tailwind + CSS-переменные тем)
-│   └── manifest.json       #   PWA-манифест
-├── schema.sql              # схема D1 (users, activities, logs, exercises, …)
-├── wrangler.jsonc          # конфиг Cloudflare Workers (имя, D1, cron)
-├── scripts/                # разовые утилиты
+├── _worker.js              # backend: API, auth, push, cron
+├── public/                 # frontend (no build step)
+│   ├── index.html          #   SPA shell
+│   ├── app.js              #   the whole frontend (State → API → Render)
+│   ├── sw.js               #   Service Worker (receives push notifications)
+│   ├── style.css           #   styles (Tailwind + CSS theme variables)
+│   └── manifest.json       #   PWA manifest
+├── schema.sql              # D1 schema (users, activities, logs, exercises, …)
+├── wrangler.jsonc          # Cloudflare Workers config (name, D1, cron)
+├── scripts/                # one-off utilities
 │   └── generate-vapid-keys.js
-├── docs/                   # документация по архитектуре и фичам
+├── docs/                   # architecture & feature docs
 │   ├── implementation_plan.md
 │   └── gym-analytics.md
-└── tests/                  # E2E- и a11y-тесты (Playwright + Axe-core)
+└── tests/                  # E2E & a11y tests (Playwright + Axe-core)
 ```
 
 ---
 
-## 📚 Документация
+## 📚 Documentation
 
-| Документ | О чём |
+| Document | About |
 |---|---|
-| [docs/implementation_plan.md](docs/implementation_plan.md) | UI/UX-концепция и архитектура фронтенда: экраны, drill-down активности, достижения |
-| [docs/gym-analytics.md](docs/gym-analytics.md) | Gym Mode: схема БД, API тренировок (`/api/workouts*`), дашборды и BI-ready структура |
-| [AGENTS.md](AGENTS.md) | Конвенции репозитория и правила для AI-агентов |
-| [tests/README.md](tests/README.md) | Запуск E2E- и a11y-тестов |
+| [docs/implementation_plan.md](docs/implementation_plan.md) | UI/UX concept and frontend architecture: screens, activity drill-down, achievements |
+| [docs/gym-analytics.md](docs/gym-analytics.md) | Gym Mode: DB schema, workout API (`/api/workouts*`), dashboards and BI-ready structure |
+| [AGENTS.md](AGENTS.md) | Repository conventions and rules for AI agents |
+| [tests/README.md](tests/README.md) | Running E2E & a11y tests |
 
 ---
 
-## 🚀 Запуск: с нуля до прода
+## 🚀 Getting started: from zero to production
 
-### 1. Зависимости
+### 1. Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Локальные переменные окружения
+### 2. Local environment variables
 
 ```bash
 cp .dev.vars.example .dev.vars
-# Заполни SESSION_SECRET и VAPID_* (ключи — см. шаг 4)
+# Fill in SESSION_SECRET and VAPID_* (keys — see step 4)
 ```
 
-### 3. Миграция БД
+### 3. Database migration
 
-Первый раз или после изменений в `schema.sql`:
+First run, or after changes to `schema.sql`:
 
 ```bash
-npm run db:init:local                                   # локально (для wrangler dev)
-wrangler d1 execute trecker --remote --file=./schema.sql  # продакшн
+npm run db:init:local                                     # local (for wrangler dev)
+wrangler d1 execute trecker --remote --file=./schema.sql  # production
 ```
 
-### 4. VAPID-ключи для push (один раз)
+### 4. VAPID keys for push (one time)
 
 ```bash
 node scripts/generate-vapid-keys.js
 ```
 
-Скрипт выведет пару ключей — устанавливаем их секретами в Cloudflare:
+The script prints a key pair — set them as secrets in Cloudflare:
 
 ```bash
-echo "ПУБЛИЧНЫЙ_КЛЮЧ"            | wrangler secret put VAPID_PUBLIC_KEY
-echo "ПРИВАТНЫЙ_КЛЮЧ"            | wrangler secret put VAPID_PRIVATE_KEY
-echo "mailto:you@example.com"    | wrangler secret put VAPID_EMAIL
-echo "длинная-случайная-строка"  | wrangler secret put SESSION_SECRET
+echo "PUBLIC_KEY"                 | wrangler secret put VAPID_PUBLIC_KEY
+echo "PRIVATE_KEY"                | wrangler secret put VAPID_PRIVATE_KEY
+echo "mailto:you@example.com"     | wrangler secret put VAPID_EMAIL
+echo "long-random-string"         | wrangler secret put SESSION_SECRET
 ```
 
-### 5. Локальная разработка
+### 5. Local development
 
 ```bash
 npm run dev   # http://localhost:8787
 ```
 
-### 6. Деплой
+### 6. Deploy
 
 ```bash
 npm run deploy
 ```
 
-После деплоя в консоли должно быть:
+After deploying, the console should show:
 
 ```
 Deployed sport triggers
   https://sport.ms-cert.workers.dev
-  schedule: 0 3 * * *    ← 8:00 Алматы
-  schedule: 0 8 * * *    ← 13:00 Алматы
-  schedule: 0 15 * * *   ← 20:00 Алматы
+  schedule: 0 3 * * *    ← 8:00 Almaty
+  schedule: 0 8 * * *    ← 13:00 Almaty
+  schedule: 0 15 * * *   ← 20:00 Almaty
 ```
 
 ---
 
-## 🔔 Push-уведомления
+## 🔔 Push notifications
 
-Приходят **только если хотя бы одна привычка за день не выполнена**.
+Sent **only if at least one habit for the day is still incomplete**.
 
-| Время (Алматы) | UTC | Заголовок | Текст |
+| Time (Almaty) | UTC | Title | Body |
 |---|---|---|---|
-| 8:00 | 03:00 | 🌅 Герой, доброе утро! | Начни день — отметь первые привычки! |
-| 13:00 | 08:00 | 💪 Герой, время обеда! | Привычки сами себя не отметят 😄 |
-| 20:00 | 15:00 | 🌙 Герой, добрый вечер! | Последний шанс закрыть день на 100%! |
+| 8:00 | 03:00 | 🌅 Good morning, hero! | Start the day — check off your first habits! |
+| 13:00 | 08:00 | 💪 Lunchtime, hero! | Habits won't check themselves off 😄 |
+| 20:00 | 15:00 | 🌙 Good evening, hero! | Last chance to close the day at 100%! |
 
-Подписка на телефоне: **Профиль → Уведомления → Включить**.
+To subscribe on mobile: **Profile → Notifications → Enable**.
 
 ---
 
-## ⚙️ Переменные окружения
+## ⚙️ Environment variables
 
-| Переменная | Где задать | Описание |
+| Variable | Where to set | Description |
 |---|---|---|
-| `SESSION_SECRET` | `wrangler secret` | Секрет для подписи cookie-сессий **(обязательно)** |
-| `VAPID_PUBLIC_KEY` | `wrangler secret` | Публичный VAPID-ключ (P-256, base64url) |
-| `VAPID_PRIVATE_KEY` | `wrangler secret` | Приватный VAPID-ключ |
-| `VAPID_EMAIL` | `wrangler secret` | Контактный email для VAPID |
-| `GOOGLE_CLIENT_ID` | `wrangler secret` | Google OAuth (опционально) |
-| `GOOGLE_CLIENT_SECRET` | `wrangler secret` | Google OAuth (опционально) |
-| `TURNSTILE_SITEKEY` | `wrangler secret` | Cloudflare Turnstile (опционально) |
-| `TURNSTILE_SECRET` | `wrangler secret` | Cloudflare Turnstile (опционально) |
-| `E2E` | `.dev.vars` | `1` отключает rate-limit для локальных E2E-тестов (в проде не задавать) |
+| `SESSION_SECRET` | `wrangler secret` | Secret for signing session cookies **(required)** |
+| `VAPID_PUBLIC_KEY` | `wrangler secret` | Public VAPID key (P-256, base64url) |
+| `VAPID_PRIVATE_KEY` | `wrangler secret` | Private VAPID key |
+| `VAPID_EMAIL` | `wrangler secret` | Contact email for VAPID |
+| `GOOGLE_CLIENT_ID` | `wrangler secret` | Google OAuth (optional) |
+| `GOOGLE_CLIENT_SECRET` | `wrangler secret` | Google OAuth (optional) |
+| `TURNSTILE_SITEKEY` | `wrangler secret` | Cloudflare Turnstile (optional) |
+| `TURNSTILE_SECRET` | `wrangler secret` | Cloudflare Turnstile (optional) |
+| `E2E` | `.dev.vars` | `1` disables rate limiting for local E2E tests (do not set in production) |
 
-> 🔒 Секреты задаются только через `wrangler secret put` или дашборд Cloudflare — в репозиторий они не попадают. Локально — в `.dev.vars` (в `.gitignore`).
+> 🔒 Secrets are set only via `wrangler secret put` or the Cloudflare dashboard — they never go into the repo. Locally they live in `.dev.vars` (which is in `.gitignore`).
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
 [MIT](LICENSE) © [Aziz](https://github.com/aznrz)
