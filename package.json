@@ -2,6 +2,7 @@
   "name": "trecker",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Личный трекер активностей (подтягивания, чтение, учёба) на Cloudflare Workers + D1",
   "scripts": {
     "dev": "wrangler dev",

@@ -4,7 +4,7 @@ Instructions for AI agents working in this repository.
 
 ## TL;DR
 
-- **What:** Habit Tracker on **Cloudflare Workers + D1**. Prod: https://trecker.ms-cert.workers.dev
+- **What:** Habit Tracker on **Cloudflare Workers + D1**. Prod: https://sport.ms-cert.workers.dev
 - **Where the code is:** `_worker.js` — the entire backend (`/api/*`); `public/` — frontend (vanilla JS, no build step);
   `schema.sql` — D1 schema.
 - **Read the wiki first:** the knowledge base lives in [wiki/](wiki/index.md). For questions about the project,
@@ -13,13 +13,14 @@ Instructions for AI agents working in this repository.
   (ingest). See the "Project wiki" section below.
 - **Style:** code comments — **Russian** (to match the existing code); commit messages — **English**.
 - **Security:** **never commit secrets**, use `wrangler secret put` only.
+- **Deploy:** manual via `npm run deploy` (`wrangler deploy`). No Git auto-deploy.
 - **Irreversible (ask for confirmation):** prod D1 migrations (`--remote`), writing/resetting secrets,
-  `git push` to `main` (= auto-deploy to prod).
+  `npm run deploy` (ships to prod).
 
 ## What this is
 
 A personal activity tracker (Habit Tracker) on **Cloudflare Workers + D1**.
-Prod: https://trecker.ms-cert.workers.dev
+Prod: https://sport.ms-cert.workers.dev
 
 ## Architecture
 
@@ -29,7 +30,7 @@ Prod: https://trecker.ms-cert.workers.dev
   `style.css`, `manifest.json`, `icon.svg`.
 - **`schema.sql`** — D1 (SQLite) schema. Tables: `users`, `activities`, `logs`,
   `exercises`, `workout_sets`, `rate_limits`.
-- **`wrangler.jsonc`** — Cloudflare config. Worker name `trecker`, D1 binding `DB`.
+- **`wrangler.jsonc`** — Cloudflare config. Worker name `sport`, D1 binding `DB` (database `trecker`).
 
 ## Commands
 
@@ -47,7 +48,7 @@ npx wrangler d1 execute trecker --remote --command "SELECT ..."
 
 ## Deploy
 
-Prod is **auto-deployed from Git** (push to `main`). A manual `wrangler deploy` is usually not needed.
+Prod is deployed **manually**: `npm run deploy` (`wrangler deploy`). There is no Git auto-deploy.
 Secrets are stored separately from the code in Cloudflare and survive redeploys.
 
 ## Feature flags (via Cloudflare secrets)
@@ -72,7 +73,7 @@ Set a secret: `npx wrangler secret put NAME`.
 
 - Migrations on the production D1 (`--remote`).
 - Writing/resetting secrets in Cloudflare.
-- `git push` to `main` (triggers auto-deploy to prod).
+- `npm run deploy` (ships to prod).
 
 ## Project wiki (Karpathy method)
 
@@ -80,8 +81,8 @@ This repo maintains a persistent knowledge base following the
 [Karpathy method](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 Three layers:
 
-- **Layer 1 — Raw sources** (immutable): code (`_worker.js`, `public/`, `schema.sql`,
-  `migration.sql`), design (`design/`). The agent reads but does not "rewrite to fit the wiki".
+- **Layer 1 — Raw sources** (immutable): code (`_worker.js`, `public/`, `schema.sql`),
+  design (`design/`). The agent reads but does not "rewrite to fit the wiki".
 - **Layer 2 — Wiki** (`wiki/`): cross-linked markdown pages. Catalog — `wiki/index.md`,
   journal — `wiki/log.md`. The agent **owns and maintains** this layer.
 - **Layer 3 — Schema**: this file (`AGENTS.md`) — rules and conventions.

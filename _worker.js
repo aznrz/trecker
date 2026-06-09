@@ -11,7 +11,10 @@ export default {
       try {
         return await handleApi(request, env, url);
       } catch (e) {
-        return json({ error: e.message || "server error" }, 500);
+        // Детали (имена таблиц/констрейнтов D1, текст исключений) — только в лог,
+        // наружу — generic, чтобы не раскрывать схему БД и конфигурацию.
+        console.error("api error", e?.message, e?.stack);
+        return json({ error: "server error" }, 500);
       }
     }
     return env.ASSETS.fetch(request);
@@ -170,9 +173,9 @@ function logout(request) {
 
 // Лимитер запросов на D1 (надёжно на любом плане): окно фиксированной длины по IP.
 async function rateOk(env, name, request, limit, periodSec) {
-  // Отключаем лимитер при локальном E2E тестировании (срезаем пробелы/CRLF для Windows)
-  const sessionSecret = (env.SESSION_SECRET || "").trim();
-  if (sessionSecret === 'e2e-testing-session-secret-key-32-chars-long-or-more') return true;
+  // Отключаем лимитер только под явным флагом E2E (НЕ завязано на значение
+  // продового SESSION_SECRET — иначе публичный код раскрывал бы способ снять защиту).
+  if (env.E2E === "1") return true;
 
   const ip = request.headers.get("CF-Connecting-IP") || "anon";
   const now = Math.floor(Date.now() / 1000);
@@ -260,7 +263,7 @@ async function googleCallback(request, env, url) {
     });
     const profile = await uiRes.json().catch(() => ({}));
     const email = (profile.email || "").toLowerCase().trim();
-    if (!email || profile.email_verified === false) return redirectHome(url, "google");
+    if (!email || profile.email_verified !== true) return redirectHome(url, "google");
 
     const uid = await upsertGoogleUser(env, email, profile.sub);
     const sid = await createSession(uid, secret(env));
@@ -415,7 +418,7 @@ async function getActivityLogs(env, uid, activityId) {
 async function createLog(request, env, uid) {
   const b = await request.json().catch(() => ({}));
   let amount = Number(b.amount);
-  if (!b.activity_id || !isFinite(amount) || amount === 0) return json({ error: "invalid" }, 400);
+  if (!b.activity_id || !isFinite(amount) || amount <= 0) return json({ error: "invalid" }, 400);
   const act = await env.DB.prepare("SELECT id, type, track_calories, calorie_kind, calories_per_unit FROM activities WHERE id=? AND user_id=?").bind(b.activity_id, uid).first();
   if (!act) return json({ error: "no activity" }, 404);
   const day = isValidDay(b.day) ? b.day : new Date().toISOString().slice(0, 10);
@@ -907,10 +910,27 @@ function fromB64url(str) {
 
 // ---------- push subscriptions ----------
 
+// Эндпоинты браузерных push-сервисов. По крону воркер делает fetch() на этот URL,
+// поэтому принимаем только https и хост известного push-провайдера (защита от SSRF).
+const PUSH_HOST_SUFFIXES = [
+  ".googleapis.com",            // Chrome / Chromium (fcm.googleapis.com)
+  ".push.services.mozilla.com", // Firefox
+  ".notify.windows.com",        // Edge / Windows (WNS)
+  ".push.apple.com",            // Safari (web.push.apple.com)
+];
+function isAllowedPushEndpoint(endpoint) {
+  let u;
+  try { u = new URL(endpoint); } catch { return false; }
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  return PUSH_HOST_SUFFIXES.some((s) => host === s.slice(1) || host.endsWith(s));
+}
+
 async function subscribePush(request, env, uid) {
   const b = await request.json().catch(() => ({}));
   const { endpoint, p256dh, auth } = b;
   if (!endpoint || !p256dh || !auth) return json({ error: "invalid subscription" }, 400);
+  if (!isAllowedPushEndpoint(endpoint)) return json({ error: "invalid endpoint" }, 400);
   const now = new Date().toISOString();
   await env.DB.prepare(
     `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?)
